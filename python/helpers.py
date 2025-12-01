@@ -10,20 +10,20 @@ from dataclasses import dataclass
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_device(DEVICE)  # This sets the default device for all new tensors
 
-def points_on_grid(GRID_SIZE, jitter=False, dim=2):
+def points_on_grid(GRID_SIZE, jitter=False, dim=2, device=None):
     # Create linspace for each dimension
-    coords = [torch.linspace(0, 1, GRID_SIZE+1)[:-1] for _ in range(dim)]
-    
+    coords = [torch.linspace(0, 1, GRID_SIZE + 1, device=device)[:-1] for _ in range(dim)]
+
     # Create meshgrid for all dimensions
     meshgrids = torch.meshgrid(*coords, indexing='xy')
-    
+
     # Apply jitter if requested
     if jitter:
         meshgrids = [grid + torch.rand_like(grid) / GRID_SIZE for grid in meshgrids]
-    
+
     # Stack and flatten all coordinates
     points = torch.stack([grid.flatten() for grid in meshgrids], dim=1)
-    
+
     return points
 
 # https://github.com/getkeops/keops/issues/73 is FUCKING AWESOME!!!

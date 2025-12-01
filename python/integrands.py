@@ -1,7 +1,12 @@
 import math
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import slangtorch
+from largesteps.geometry import compute_matrix
+from largesteps.parameterize import from_differential, to_differential
+import plyfile
 from python.helpers import (
     SlangShader,
     SlangShaderForwardGrad,
@@ -63,6 +68,14 @@ class CirclesIntegrandSlang(BaseIntegrandSlang):
         self.out_dim = 1
 
 
+class HalfPlaneIntegrandSlang(BaseIntegrandSlang):
+    def __init__(self, threshold=0.9):
+        super().__init__()
+        self.shader = slangtorch.loadModule("slang/__gen__half_plane.slang")
+        self.p = nn.Parameter(torch.tensor([float(threshold)]))
+        self.out_dim = 1
+
+
 class MultiCirclesIntegrandSlang(BaseIntegrandSlang):
     def __init__(self, circles):
         """circles: iterable of (cx, cy, radius, opacity)."""
@@ -84,6 +97,30 @@ class BinaryThresholdIntegrandSlang(BaseIntegrandSlang):
         params = torch.zeros(1 + grid_size * grid_size, dtype=torch.float32)
         params[0] = float(grid_size)
         params[1:] = (torch.rand(grid_size * grid_size) - 0.5) * init_scale
+        self.p = nn.Parameter(params)
+        self.out_dim = 1
+
+
+class SweptBrushIntegrandSlang(BaseIntegrandSlang):
+    def __init__(self, bristle_params, n_bristles=None, start_step=0, n_steps=95, draw_path=False):
+        super().__init__()
+        defines = {"DRAW_PATH": 1} if draw_path else {}
+        self.shader = slangtorch.loadModule("slang/__gen__swept_brush.slang", defines=defines)
+
+        bristle_params = torch.as_tensor(bristle_params, dtype=torch.float32)
+        if bristle_params.ndim != 2 or bristle_params.shape[1] != 3:
+            raise ValueError("bristle_params must be (N, 3) for (center offset, radius offset, thickness).")
+        if n_bristles is None:
+            n_bristles = bristle_params.shape[0]
+        if bristle_params.shape[0] != n_bristles:
+            raise ValueError("n_bristles must match bristle_params rows.")
+
+        params = torch.zeros(3 + 3 * n_bristles, dtype=torch.float32)
+        params[0] = float(n_bristles)
+        params[1] = float(start_step)
+        params[2] = float(n_steps)
+        params[3:] = bristle_params.reshape(-1)
+
         self.p = nn.Parameter(params)
         self.out_dim = 1
 
@@ -392,6 +429,408 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
 
         header = torch.tensor(
             [float(self.num_primitives), float(self.grid_size), float(self.max_elements_per_cell)],
+            device=device,
+        )
+        return torch.cat([header, self.background_color.to(device), result, grid])
+
+
+def _projection_matrix(x=0.5, n=1.5, f=100.0):
+    return np.array(
+        [
+            [n / x, 0.0, 0.0, 0.0],
+            [0.0, n / -x, 0.0, 0.0],
+            [0.0, 0.0, -(f + n) / (f - n), -(2.0 * f * n) / (f - n)],
+            [0.0, 0.0, -1.0, 0.0],
+        ],
+        dtype=np.float32,
+    )
+
+
+def _translation_matrix(x, y, z):
+    mat = np.eye(4, dtype=np.float32)
+    mat[0, 3] = x
+    mat[1, 3] = y
+    mat[2, 3] = z
+    return mat
+
+
+def _random_rotation_matrix(rng):
+    u1, u2, u3 = rng.random(3)
+    qx = math.sqrt(1.0 - u1) * math.sin(math.tau * u2)
+    qy = math.sqrt(1.0 - u1) * math.cos(math.tau * u2)
+    qz = math.sqrt(u1) * math.sin(math.tau * u3)
+    qw = math.sqrt(u1) * math.cos(math.tau * u3)
+    rot = np.array(
+        [
+            [1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * qw), 2 * (qx * qz + qy * qw)],
+            [2 * (qx * qy + qz * qw), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qx * qw)],
+            [2 * (qx * qz - qy * qw), 2 * (qy * qz + qx * qw), 1 - 2 * (qx * qx + qy * qy)],
+        ],
+        dtype=np.float32,
+    )
+    mat = np.eye(4, dtype=np.float32)
+    mat[:3, :3] = rot
+    return mat
+
+
+def _create_view_buffers(num_views, seed):
+    rng = np.random.default_rng(seed if seed is not None else 0)
+    proj = torch.from_numpy(_projection_matrix())
+    view_mats = []
+    light_dirs = []
+    for _ in range(num_views):
+        view = _translation_matrix(0.0, 0.0, -4.0) @ _random_rotation_matrix(rng)
+        view_mats.append(view)
+        campos = np.linalg.inv(view)[:3, 3]
+        light = -campos / (np.linalg.norm(campos) + 1e-8)
+        light_dirs.append(light.astype(np.float32))
+    view_tensor = torch.from_numpy(np.stack(view_mats).astype(np.float32))
+    mvps = proj @ view_tensor
+    light_tensor = torch.from_numpy(np.stack(light_dirs).astype(np.float32))
+    return mvps, light_tensor
+
+
+def _load_ply_mesh(ply_path):
+    plydata = plyfile.PlyData.read(str(ply_path))
+    vertex_data = plydata["vertex"]
+    vertices = np.vstack([vertex_data["x"], vertex_data["y"], vertex_data["z"]]).T.astype(np.float32)
+    faces = np.stack([face[0] for face in plydata["face"]], axis=0).astype(np.int64)
+    return torch.from_numpy(vertices), torch.from_numpy(faces)
+
+
+def _normalize_vertices(vertices, scale):
+    mean = vertices.mean(dim=0, keepdim=True)
+    centered = vertices - mean
+    span = (centered.max() - centered.min()).clamp(min=1e-6)
+    return centered * (scale / span)
+
+
+def _rotation_from_quat(quat):
+    quat = quat.clone()
+    norm = quat.norm(dim=1, keepdim=True).clamp(min=1e-12)
+    q = quat / norm
+    w, x, y, z = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
+    R = torch.zeros(quat.shape[0], 3, 3, dtype=quat.dtype, device=quat.device)
+    R[:, 0, 0] = 1 - 2 * (y * y + z * z)
+    R[:, 0, 1] = 2 * (x * y - z * w)
+    R[:, 0, 2] = 2 * (x * z + y * w)
+    R[:, 1, 0] = 2 * (x * y + z * w)
+    R[:, 1, 1] = 1 - 2 * (x * x + z * z)
+    R[:, 1, 2] = 2 * (y * z - x * w)
+    R[:, 2, 0] = 2 * (x * z - y * w)
+    R[:, 2, 1] = 2 * (y * z + x * w)
+    R[:, 2, 2] = 1 - 2 * (x * x + y * y)
+    return R
+
+
+def _build_scaling_rotation(scales, quat):
+    R = _rotation_from_quat(quat)
+    L = torch.zeros(scales.shape[0], 3, 3, dtype=scales.dtype, device=scales.device)
+    L[:, 0, 0] = scales[:, 0]
+    L[:, 1, 1] = scales[:, 1]
+    L[:, 2, 2] = scales[:, 2]
+    return torch.matmul(R, L)
+
+
+_ROTATED_ELLIPSE_PRIM_TYPE = 5.0
+
+
+class TriangleRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
+    """Triangle-mesh rasterizer backed by the vector-graphics shader."""
+
+    def __init__(
+        self,
+        ply_file,
+        grid_size=256,
+        max_elements_per_cell=64,
+        background_color=(0.0, 0.0, 0.0),
+        scale=0.5,
+        res=512,
+        num_view=16,
+        seed=42,
+    ):
+        super().__init__()
+        self.shader = slangtorch.loadModule("slang/__gen__vector_graphics_rgb_padded_accel.slang")
+        self.grid_size = grid_size
+        self.max_elements_per_cell = max_elements_per_cell
+        self.background_color = torch.tensor(background_color, dtype=torch.float32)
+        self.scale = scale
+        self.res = res
+        self.num_views = max(1, num_view)
+        self.lambda_ = 19.0
+        self.out_dim = 3
+        self.active_view = 0
+
+        vertices, faces = _load_ply_mesh(ply_file)
+        vertices = _normalize_vertices(vertices.float(), self.scale)
+        faces = faces.long()
+        self._assign_buffer("faces", faces)
+        self._update_mesh(vertices)
+
+        mvps, light = _create_view_buffers(self.num_views, seed)
+        self._assign_buffer("mvps", mvps)
+        self._assign_buffer("lightdir", light)
+
+    def _assign_buffer(self, name, tensor):
+        tensor = tensor.contiguous()
+        if name in self._buffers:
+            setattr(self, name, tensor)
+        else:
+            self.register_buffer(name, tensor)
+
+    def _update_mesh(self, vertices):
+        device = vertices.device
+        faces = self.faces.to(device)
+        self.num_primitives = faces.shape[0]
+        base_colors = torch.ones(self.num_primitives, 3, dtype=torch.float32, device=device)
+        self._assign_buffer("base_colors_tri", base_colors)
+        M = compute_matrix(vertices, faces, self.lambda_)
+        if isinstance(M, torch.Tensor):
+            M = M.to(device)
+        self._assign_buffer("mesh_matrix", M)
+        self.u = nn.Parameter(to_differential(self.mesh_matrix, vertices))
+
+    @property
+    def vertices(self):
+        return from_differential(self.mesh_matrix, self.u, "Cholesky")
+
+    def reset_mesh(self, vertices, faces):
+        device = self.u.device if hasattr(self, "u") else vertices.device
+        face_tensor = faces.to(device=device, dtype=torch.long)
+        vert_tensor = vertices.to(device=device, dtype=torch.float32)
+        self._assign_buffer("faces", face_tensor)
+        self._update_mesh(vert_tensor)
+
+    def set_active_view(self, idx):
+        self.active_view = int(idx) % self.num_views
+
+    @property
+    def p(self):
+        device = self.u.device
+        if self.num_primitives == 0:
+            grid = torch.zeros(
+                self.grid_size * self.grid_size * (self.max_elements_per_cell + 1),
+                device=device,
+                dtype=torch.float32,
+            )
+            header = torch.tensor(
+                [0.0, float(self.grid_size), float(self.max_elements_per_cell)],
+                device=device,
+            )
+            return torch.cat([header, self.background_color.to(device), grid])
+
+        if not (0 <= self.active_view < self.num_views):
+            raise ValueError(f"Active view {self.active_view} out of range (0-{self.num_views - 1}).")
+
+        vertices = self.vertices
+        v_hom = F.pad(vertices, (0, 1), value=1.0)
+        view = self.mvps[self.active_view].transpose(0, 1)
+        v_ndc = torch.matmul(v_hom, view)
+        triangles = v_ndc[self.faces]
+        world_triangles = vertices[self.faces]
+        normals = torch.cross(world_triangles[:, 0] - world_triangles[:, 1], world_triangles[:, 2] - world_triangles[:, 1])
+        normals = normals / (normals.norm(dim=-1, keepdim=True) + 1e-10)
+        z_depth = triangles.mean(dim=1)[:, 2]
+        order = torch.argsort(z_depth)
+        sorted_triangles = triangles[order]
+        sorted_world_normals = normals[order]
+        sorted_distances = z_depth[order]
+        control_points = (sorted_triangles[..., :2].reshape(-1, 6) + 1.0) * 0.5
+
+        light = self.lightdir[self.active_view]
+        shading = (-light.view(1, 3) * sorted_world_normals).sum(dim=-1, keepdim=True).clamp(min=0.0)
+        base_colors = self.base_colors_tri[order]
+        active_colors = base_colors * shading
+
+        result = torch.zeros(self.num_primitives * 20, device=device)
+        idx = torch.arange(self.num_primitives, device=device)
+        result[idx * 20] = 1.0
+        control_idx = idx.unsqueeze(1) * 20 + torch.arange(1, 7, device=device)
+        result.index_put_((control_idx.view(-1),), control_points.view(-1))
+        result[idx * 20 + 7] = 0.0
+        result[idx * 20 + 8] = 0.0
+        color_idx = idx.unsqueeze(1) * 20 + torch.arange(9, 12, device=device)
+        result.index_put_((color_idx.view(-1),), active_colors.view(-1))
+        result[idx * 20 + 12] = 1.0
+
+        grid = _build_acceleration_structure(
+            torch.ones(self.num_primitives, device=device),
+            control_points,
+            torch.zeros(self.num_primitives, device=device),
+            self.grid_size,
+            self.max_elements_per_cell,
+            device,
+        )
+        grid_int = grid.to(torch.int64)
+        counts = grid_int[..., 0].clamp_(min=0, max=self.max_elements_per_cell)
+        elements = grid_int[..., 1:]
+        max_cell = elements.shape[-1]
+        flat_elements = elements.view(-1, max_cell)
+        flat_counts = counts.view(-1)
+        idx_range = torch.arange(max_cell, device=device).unsqueeze(0)
+        valid_mask = idx_range < flat_counts.unsqueeze(1)
+        flat_elements[~valid_mask] = -1
+        depths = torch.full_like(elements, float("inf"), dtype=torch.float32)
+        flat_depths = depths.view(-1, max_cell)
+        if valid_mask.any():
+            valid_elements = flat_elements[valid_mask].long()
+            flat_depths[valid_mask] = -sorted_distances[valid_elements]
+        sorted_idx = torch.argsort(depths, dim=-1)
+        sorted_elements = torch.gather(elements, -1, sorted_idx)
+        grid_int[..., 1:] = sorted_elements
+        grid_int[..., 0] = counts
+        grid_flat = grid_int.to(torch.float32).reshape(-1)
+
+        header = torch.tensor(
+            [float(self.num_primitives), float(self.grid_size), float(self.max_elements_per_cell)],
+            device=device,
+        )
+        return torch.cat([header, self.background_color.to(device), result, grid_flat])
+
+
+class EllipsoidRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
+    """Projects 3D ellipsoids to screen-space ellipses and renders them via the vector shader."""
+
+    def __init__(
+        self,
+        num_primitives=10000,
+        grid_size=256,
+        max_elements_per_cell=64,
+        background_color=(0.0, 0.0, 0.0),
+        center_scale=0.5,
+        res=512,
+        num_view=16,
+        ellipsoid_radius=1e-3,
+        seed=42,
+    ):
+        super().__init__()
+        self.shader = slangtorch.loadModule("slang/__gen__vector_graphics_rgb_padded_accel.slang")
+        self.grid_size = grid_size
+        self.max_elements_per_cell = max_elements_per_cell
+        self.background_color = torch.tensor(background_color, dtype=torch.float32)
+        self.resolution = res
+        self.num_views = max(1, num_view)
+        self.out_dim = 3
+        self.active_view = 0
+
+        if seed is not None:
+            torch.manual_seed(seed)
+            np.random.seed(seed)
+
+        centers = ((torch.rand(num_primitives, 3) - 0.5) / max(1e-6, center_scale)).float()
+        scales = (ellipsoid_radius * torch.rand(num_primitives, 3)).float().clamp(min=1e-9)
+        rotations = torch.zeros(num_primitives, 4, dtype=torch.float32)
+        rotations[:, 0] = 1.0
+        colors = torch.ones(num_primitives, 3, dtype=torch.float32)
+        opacities = torch.ones(num_primitives, dtype=torch.float32) / 3.0
+
+        self.ellipsoid_centers = nn.Parameter(centers)
+        self.ellipsoid_scales = nn.Parameter(scales)
+        self.ellipsoid_rotations = nn.Parameter(rotations)
+        self.fill_colors = nn.Parameter(colors)
+        self.opacities = nn.Parameter(opacities)
+
+        mvps, light = _create_view_buffers(self.num_views, seed)
+        self.register_buffer("mvps", mvps)
+        self.register_buffer("lightdir", light)
+        e = 1.5 / 0.5
+        focal = (self.resolution / 2.0) / (1.0 / e)
+        self.register_buffer("focal_length", torch.tensor(focal, dtype=torch.float32))
+
+    @property
+    def num_primitives(self):
+        return self.ellipsoid_centers.shape[0]
+
+    def set_active_view(self, idx):
+        self.active_view = int(idx) % self.num_views
+
+    def _empty_param_block(self, device):
+        grid = torch.zeros(
+            self.grid_size * self.grid_size * (self.max_elements_per_cell + 1),
+            device=device,
+            dtype=torch.float32,
+        )
+        header = torch.tensor(
+            [0.0, float(self.grid_size), float(self.max_elements_per_cell)],
+            device=device,
+        )
+        return torch.cat([header, self.background_color.to(device), grid])
+
+    @property
+    def p(self):
+        device = self.ellipsoid_centers.device
+        total = self.num_primitives
+        if total == 0:
+            return self._empty_param_block(device)
+        if not (0 <= self.active_view < self.num_views):
+            raise ValueError(f"Active view {self.active_view} out of range (0-{self.num_views - 1}).")
+
+        ones = torch.ones(total, 1, device=device, dtype=self.ellipsoid_centers.dtype)
+        centers_h = torch.cat([self.ellipsoid_centers, ones], dim=1)
+        view = self.mvps[self.active_view].transpose(0, 1)
+        centers_ndc = torch.matmul(centers_h, view)
+        valid_mask = centers_ndc[:, 2] > 0.0
+        if not valid_mask.any():
+            return self._empty_param_block(device)
+
+        centers_ndc = centers_ndc[valid_mask]
+        colors = self.fill_colors[valid_mask]
+        opacities = self.opacities[valid_mask].clamp(0.0, 1.0)
+        scales = self.ellipsoid_scales[valid_mask].clamp(min=1e-9)
+        rotations = self.ellipsoid_rotations[valid_mask]
+        centers_screen = (centers_ndc[:, :2] + 1.0) * 0.5
+
+        L = _build_scaling_rotation(scales, rotations)
+        cov = torch.matmul(L, L.transpose(1, 2))
+        view_matrix = self.mvps[self.active_view][:3, :3]
+        camera_cov = torch.matmul(view_matrix, torch.matmul(cov, view_matrix.transpose(0, 1)))
+        screen_cov = camera_cov[:, :2, :2]
+        z = centers_ndc[:, 2].clamp(min=1e-6)
+        scale = (self.focal_length.to(device) / z).view(-1, 1, 1)
+        screen_cov = screen_cov * (scale * scale)
+
+        order = torch.argsort(z)
+        centers_sorted = centers_screen[order]
+        cov_sorted = screen_cov[order]
+        colors_sorted = colors[order]
+        opacities_sorted = opacities[order]
+        z_sorted = z[order]
+        num_visible = centers_sorted.shape[0]
+        if num_visible == 0:
+            return self._empty_param_block(device)
+
+        zero_pad = torch.zeros(num_visible, 1, device=device, dtype=centers_sorted.dtype)
+        control_points = torch.cat(
+            [
+                centers_sorted,
+                cov_sorted[:, 0, 0].unsqueeze(1),
+                cov_sorted[:, 0, 1].unsqueeze(1),
+                cov_sorted[:, 1, 1].unsqueeze(1),
+                zero_pad,
+            ],
+            dim=1,
+        )
+
+        result = torch.zeros(num_visible * 20, device=device)
+        idx = torch.arange(num_visible, device=device)
+        result[idx * 20] = _ROTATED_ELLIPSE_PRIM_TYPE
+        control_idx = idx.unsqueeze(1) * 20 + torch.arange(1, 7, device=device)
+        result.index_put_((control_idx.view(-1),), control_points.view(-1))
+        color_idx = idx.unsqueeze(1) * 20 + torch.arange(9, 12, device=device)
+        result.index_put_((color_idx.view(-1),), colors_sorted.view(-1))
+        result[idx * 20 + 12] = opacities_sorted
+
+        grid = _build_acceleration_structure(
+            torch.full((num_visible,), _ROTATED_ELLIPSE_PRIM_TYPE, device=device),
+            control_points,
+            torch.zeros(num_visible, device=device),
+            self.grid_size,
+            self.max_elements_per_cell,
+            device,
+        ).reshape(-1)
+
+        header = torch.tensor(
+            [float(num_visible), float(self.grid_size), float(self.max_elements_per_cell)],
             device=device,
         )
         return torch.cat([header, self.background_color.to(device), result, grid])
