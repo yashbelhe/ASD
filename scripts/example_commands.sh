@@ -1,5 +1,5 @@
-python -u python/examples/circle_single.py
-python -u python/examples/circles.py
+python -u python/examples/grad_circle_single.py
+python -u python/examples/grad_circles.py
 python -u python/examples/csg_opt.py
 python -u python/examples/cel_shading.py --num-iter 100
 python -u python/examples/voronoi_opt.py --image starry --grid-size 20 --num-iter 500

@@ -39,10 +39,11 @@ void start(float2 x, DiffTensorView<float> p, DiffTensorView<float> res, int thr
     // ---- End: implicit function test ----
 
     if (should_force && load(impl_idx, thread_idx) == (if_off + 1) ? force_value : test > 0.0) {
-                if(ret_const) { 
-            out_idx[thread_idx] = hash(out_idx[thread_idx], (if_off + 1)*2);
-        }
-res[thread_idx] = 1.0;
+                        if(ret_const) {
+                            out_idx[thread_idx] = hash(out_idx[thread_idx], (if_off + 1)*2);
+                        }
+
+        res[thread_idx] = 1.0;
     }
 }
 

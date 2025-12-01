@@ -76,6 +76,49 @@ class HalfPlaneIntegrandSlang(BaseIntegrandSlang):
         self.out_dim = 1
 
 
+class TriangleIntegrandSlang(BaseIntegrandSlang):
+    def __init__(self):
+        super().__init__()
+        self.shader = slangtorch.loadModule("slang/__gen__triangle.slang")
+        self.p = nn.Parameter(torch.tensor([
+            0.2, 0.2,
+            0.8, 0.3,
+            0.3, 0.8,
+        ]))
+        self.out_dim = 1
+
+
+class QuadraticBezierIntegrandSlang(BaseIntegrandSlang):
+    def __init__(self):
+        super().__init__()
+        self.shader = slangtorch.loadModule("slang/__gen__bezier_curve.slang")
+        self.p = nn.Parameter(torch.tensor([
+            0.2, 0.2,
+            0.5, 0.8,
+            0.8, 0.2,
+            0.02,
+        ]))
+        self.out_dim = 1
+
+
+class VoronoiGridIntegrandSlang(BaseIntegrandSlangRGB):
+    def __init__(self, n=3, jitter=0.08):
+        super().__init__()
+        self.shader = slangtorch.loadModule("slang/__gen__voronoi_simple.slang")
+        params = []
+        torch.manual_seed(42)
+        for i in range(n):
+            for j in range(n):
+                base_x = (i + 0.5) / n
+                base_y = (j + 0.5) / n
+                offset_x = (torch.rand(1).item() - 0.5) * jitter / n
+                offset_y = (torch.rand(1).item() - 0.5) * jitter / n
+                r, g, b = torch.rand(3).tolist()
+                params.extend([base_x + offset_x, base_y + offset_y, r, g, b])
+        self.p = nn.Parameter(torch.tensor(params, dtype=torch.float32))
+        self.out_dim = 3
+
+
 class MultiCirclesIntegrandSlang(BaseIntegrandSlang):
     def __init__(self, circles):
         """circles: iterable of (cx, cy, radius, opacity)."""
@@ -564,15 +607,18 @@ class TriangleRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
         vertices, faces = _load_ply_mesh(ply_file)
         vertices = _normalize_vertices(vertices.float(), self.scale)
         faces = faces.long()
-        self._assign_buffer("faces", faces)
+        self._assign_buffer("faces", faces, dtype=torch.long)
         self._update_mesh(vertices)
 
         mvps, light = _create_view_buffers(self.num_views, seed)
         self._assign_buffer("mvps", mvps)
         self._assign_buffer("lightdir", light)
 
-    def _assign_buffer(self, name, tensor):
-        tensor = tensor.contiguous()
+    def _assign_buffer(self, name, tensor, dtype=None):
+        if not torch.is_tensor(tensor):
+            tensor = torch.as_tensor(tensor)
+        target_dtype = dtype or tensor.dtype
+        tensor = tensor.to(dtype=target_dtype, copy=True)
         if name in self._buffers:
             setattr(self, name, tensor)
         else:
@@ -598,7 +644,7 @@ class TriangleRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
         device = self.u.device if hasattr(self, "u") else vertices.device
         face_tensor = faces.to(device=device, dtype=torch.long)
         vert_tensor = vertices.to(device=device, dtype=torch.float32)
-        self._assign_buffer("faces", face_tensor)
+        self._assign_buffer("faces", face_tensor, dtype=torch.long)
         self._update_mesh(vert_tensor)
 
     def set_active_view(self, idx):

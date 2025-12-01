@@ -52,7 +52,7 @@ def main():
     fd_grad = (mean_plus - mean_minus) / (2.0 * eps)
 
     print(f"boundary-loss grad dL/dt = {boundary_grad:.6f}")
-    print(f"finite-diff grad  dI/dt = {fd_grad:.6f}")
+    print(f"finite-diff grad        = {fd_grad:.6f}")
 
 
 if __name__ == "__main__":

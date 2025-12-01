@@ -1,8 +1,8 @@
 """
-Finite-difference gradient test for a filled triangle indicator shader.
+Finite-difference gradient test for a quadratic Bezier stroke.
 
-We compare the boundary-loss gradient with a finite-difference estimate of the
-rendered area when nudging one vertex coordinate.
+We compare boundary-loss gradients against finite differences of the rendered
+indicator area when nudging the curve width.
 """
 
 from pathlib import Path
@@ -14,7 +14,7 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid as grid_points  # noqa: E402
-from python.integrands import TriangleIntegrandSlang  # noqa: E402
+from python.integrands import QuadraticBezierIntegrandSlang  # noqa: E402
 
 
 def evaluate_mean(integrand, pts):
@@ -24,13 +24,13 @@ def evaluate_mean(integrand, pts):
 
 
 def main():
-    src = repo_root / "slang" / "triangle.slang"
-    dst = repo_root / "slang" / "__gen__triangle.slang"
+    src = repo_root / "slang" / "bezier_curve.slang"
+    dst = repo_root / "slang" / "__gen__bezier_curve.slang"
     compile_if_needed(src, dst)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    integrand = TriangleIntegrandSlang().to(device)
-    cfg = BoundaryLossConfig(grid_size=2048, kde_k=11, num_subdivision=20)
+    integrand = QuadraticBezierIntegrandSlang().to(device)
+    cfg = BoundaryLossConfig(grid_size=3072, kde_k=13, num_subdivision=25)
     sample_points = grid_points(2048, jitter=False).to(device)
 
     eps = 5e-4
