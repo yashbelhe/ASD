@@ -168,6 +168,31 @@ class SweptBrushIntegrandSlang(BaseIntegrandSlang):
         self.out_dim = 1
 
 
+class SweptBilinearIntegrandSlang(BaseIntegrandSlang):
+    def __init__(self, grid_size=512, start_step=0, n_steps=95, grid_params=None, seed=40):
+        super().__init__()
+        defines = {"SINGLE_STEP": 1} if n_steps == 1 else {"N_STEPS": int(n_steps)}
+        self.shader = slangtorch.loadModule("slang/__gen__swept_bilinear.slang", defines=defines)
+
+        if seed is not None:
+            torch.manual_seed(seed)
+        params = torch.zeros(3 + grid_size * grid_size, dtype=torch.float32)
+        params[0] = float(grid_size)
+        params[1] = float(start_step)
+        params[2] = float(n_steps)
+
+        if grid_params is not None:
+            grid_tensor = torch.as_tensor(grid_params, dtype=torch.float32)
+            if grid_tensor.numel() != grid_size * grid_size:
+                raise ValueError("grid_params must have grid_size * grid_size entries.")
+            params[3:] = grid_tensor.reshape(-1)
+        else:
+            params[3:] = (torch.rand_like(params[3:]) - 0.5) / 30.0
+
+        self.p = nn.Parameter(params)
+        self.out_dim = 1
+
+
 class CelShadingIntegrandSlang(BaseIntegrandSlangRGB):
     def __init__(self, time=4.5):
         super().__init__()
