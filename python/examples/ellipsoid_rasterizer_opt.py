@@ -200,6 +200,7 @@ def parse_args():
     parser.add_argument("--opacity-threshold", type=float, default=0.01)
     parser.add_argument("--scale-threshold", type=float, default=1e-9)
     parser.add_argument("--save-interval", type=int, default=50)
+    parser.add_argument("--preview-interval", type=int, default=10, help="Write comparison plots every N steps.")
     parser.add_argument("--state-interval", type=int, default=100)
     parser.add_argument("--results-dir", type=Path, default=repo_root / "results" / "ellipsoid")
     parser.add_argument("--background-color", type=float, nargs=3, default=(0.0, 0.0, 0.0))
@@ -333,17 +334,26 @@ def main():
                 group["lr"] = new_center_lr
 
         loss_history.append(pixel_loss.item())
-        if step % 10 == 0:
-            print(
-                f"Iter {step:04d} | pixel={pixel_loss.item():.6f} "
-                f"edge={edge_loss.item():.6f} | split={split_count} prune={prune_count}"
-            )
+        print(
+            f"Iter {step:04d} | pixel={pixel_loss.item():.6f} "
+            f"edge={edge_loss.item():.6f} | split={split_count} prune={prune_count}"
+        )
 
-        if args.save_interval > 0 and (step + 1) % args.save_interval == 0:
+        preview_due = args.preview_interval > 0 and (step + 1) % args.preview_interval == 0
+        save_due = args.save_interval > 0 and (step + 1) % args.save_interval == 0
+        if preview_due or save_due:
             preview_view = torch.randint(0, args.num_views, (1,), device=device).item()
             ellipsoids.set_active_view(preview_view)
             frame = render_image(ellipsoids, args.resolution, args.aa_eval, True, device)
-            save_tensor_image(run_dir / f"iter_{step + 1:04d}.png", frame)
+            if preview_due:
+                plot_comparison(
+                    target_imgs[preview_view],
+                    frame,
+                    initial=None,
+                    save_path=run_dir / f"preview_{step + 1:04d}.png",
+                )
+            if save_due:
+                save_tensor_image(run_dir / f"iter_{step + 1:04d}.png", frame)
             ellipsoids.set_active_view(view_idx)
 
         if args.state_interval > 0 and (step + 1) % args.state_interval == 0:

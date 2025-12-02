@@ -763,12 +763,13 @@ class EllipsoidRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
             torch.manual_seed(seed)
             np.random.seed(seed)
 
-        centers = ((torch.rand(num_primitives, 3) - 0.5) / max(1e-6, center_scale)).float()
-        scales = (ellipsoid_radius * torch.rand(num_primitives, 3)).float().clamp(min=1e-9)
-        rotations = torch.zeros(num_primitives, 4, dtype=torch.float32)
+        init_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        centers = (torch.rand(num_primitives, 3, device=init_device) - 0.5) / center_scale
+        scales = ellipsoid_radius * torch.rand(num_primitives, 3, device=init_device)
+        rotations = torch.ones(num_primitives, 4, device=init_device)
         rotations[:, 0] = 1.0
-        colors = torch.ones(num_primitives, 3, dtype=torch.float32)
-        opacities = torch.ones(num_primitives, dtype=torch.float32) / 3.0
+        colors = torch.ones(num_primitives, 3, device=init_device)
+        opacities = torch.ones(num_primitives, device=init_device) / 3.0
 
         self.ellipsoid_centers = nn.Parameter(centers)
         self.ellipsoid_scales = nn.Parameter(scales)

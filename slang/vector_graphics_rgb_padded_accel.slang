@@ -243,6 +243,9 @@ void start(float2 x, DiffTensorView<float> p, DiffTensorView<float> res, int thr
         if (primitive_type == 4) {  // Line
             test = load_eval_line(x, p, idx+off);
         }
+        if (primitive_type == 5) {  // Rotated ellipse (covariance form)
+            test = load_eval_rotated_ellipse(x, p, idx+off);
+        }
         
         off += 7;
         int fillType = int(load(p, idx+off));
