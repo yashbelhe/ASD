@@ -124,8 +124,6 @@ class MeshInsideOutsideTest:
         if is_torch_tensor:
             import torch
             inside = torch.tensor(inside, dtype=torch.float32, device=original_device)
-            # print(inside.shape)
-            # swdfs
         
         return inside
     

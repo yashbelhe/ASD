@@ -26,7 +26,7 @@ def points_on_grid(GRID_SIZE, jitter=False, dim=2, device=None):
 
     return points
 
-# https://github.com/getkeops/keops/issues/73 is FUCKING AWESOME!!!
+# Reference: https://github.com/getkeops/keops/issues/73
 from pykeops.torch import LazyTensor
 def ranges_slices(batch):
   """Helper function for the diagonal ranges function."""
@@ -265,37 +265,6 @@ def snap_segment_to_discontinuity(segments, target_fn, LIPSCHITZ_BOUNDS, NUM_SUB
             print(f"WARNING: Reduced number of segments from {segments.shape[0]} to {segments.shape[0]}")
     # print(f"Num sampled points: {num_points}")
     return segments
-
-# def snap_segment_to_discontinuity(segments, target_fn, LIPSCHITZ_BOUNDS, NUM_SUBDIVISION, max_segments=10**7):
-#     num_points = 0
-#     completed_segments = []
-#     for i in range(NUM_SUBDIVISION):
-#         num_points += segments.shape[0] * 2
-#         if segments.shape[0] == 0:
-#             break
-#         # print(f"[{i}] Num active segments: {len(segments)}")
-#         seg_grad_norms = segment_grad_norm(segments, target_fn)
-#         segments_mask = seg_grad_norms > LIPSCHITZ_BOUNDS[i]
-#         segments = segments[segments_mask]
-#         midpoints = segments.mean(axis=1)
-#         if i == NUM_SUBDIVISION-1:
-#             break
-#         segments_first = torch.stack([segments[:,0], midpoints], dim=1)
-#         segments_second = torch.stack([midpoints, segments[:,1]], dim=1)
-#         segments = torch.cat([segments_first, segments_second], dim=0)
-#         if segments.shape[0] > max_segments:
-#             # Randomly select max_segments points if there are too many
-#             indices = torch.randperm(segments.shape[0], device=segments.device)[:max_segments]
-#             segments = segments[indices]
-#             print(f"WARNING: Reduced number of segments from {segments.shape[0]} to {segments.shape[0]}")
-#         segment_lengths = (segments[:,0] - segments[:,1]).norm(dim=1)
-#         done_mask = segment_lengths < 1e-6
-#         completed_segments.append(segments[done_mask])
-#         segments = segments[~done_mask]
-#         # print(segments.shape[0])
-#     completed_segments.append(segments)
-#     print(f"Num sampled points: {num_points}")
-#     return torch.cat(completed_segments, dim=0)
 
 import slangtorch
 BLOCK_SIZE_1D=32
@@ -620,10 +589,6 @@ def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_g
     # Find which discontinuity each segment crosses (map N to len(f_list))
     f, f_min_idx = integrand(x, ret_impl=True)
 
-    # df_dp = torch.autograd.grad(f.sum(), integrand.p, create_graph=False, retain_graph=True)[0].detach()  # [N, 3]
-    # print(df_dp)
-    # sdfs
-
     # if the boundary is not associated with an if statement, ignore it
     f_min_mask = f_min_idx >= 0
     # x = x[f_min_mask]
@@ -642,26 +607,9 @@ def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_g
             values = values.reshape(PLOT_RESOLUTION, PLOT_RESOLUTION)
 
         if dim == 2:
-            # values = integrand_pw_constant(points_).reshape(PLOT_RESOLUTION, PLOT_RESOLUTION)
-            # # Find all unique values and assign sequential indices from 0
-            # unique_values = torch.unique(values)
-            # # Create a mapping tensor where each position corresponds to a unique value's index
-            # mapping = torch.arange(len(unique_values), device=values.device)
-            # # Use searchsorted to find indices for each value in the original tensor
-            # indices = torch.searchsorted(unique_values, values.flatten()).reshape(values.shape)
-            # values = indices
-
-            # print(torch.unique(f_min_idx))
-
-            # values_unique = torch.unique(values)
-            # print(f_min_idx.unique())
             x_ = x[f_min_idx >= 0]
             f_ = f[f_min_idx >= 0]
-            # df_dx = torch.autograd.grad(f_.sum(), x_, create_graph=False, retain_graph=True, allow_unused=True)
-            # print(df_dx.std(), df_dx.max(), df_dx.min())
             f_min_idx_ = f_min_idx[f_min_idx >= 0]
-
-            # print(f_min_idx_.unique())
 
             plt.figure(figsize=(8,8))
             plt.imshow(values.cpu(), origin='lower', extent=[0,1,0,1])
@@ -669,9 +617,6 @@ def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_g
     
 
             plt.scatter(x_[:, 0].detach().cpu(), x_[:, 1].detach().cpu(), c=f_min_idx_.detach().cpu(), cmap='tab10', s=0.5)
-            # plt.scatter(x_[:, 0].detach().cpu(), x_[:, 1].detach().cpu(), c='blue', s=0.1)
-            # plt.colorbar(label='Discontinuity Index')
-           # plt.scatter(x[:, 0].cpu(), x[:, 1].cpu(), c='red', s=0.5)
             plt.show()
         else:
             print("TODO: Plotting 3D integrand")
@@ -688,10 +633,7 @@ def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_g
         p = kde(x, f_min_idx, K=KDE_K) # [N]
         # if you use KDEKeOpsKNN, need to subtract 1 from f_min_idx
         f_min_idx -= 1
-        # print(p.std(), p.max(), p.min())
     
-    # print(f.std(), f.max(), f.min())
-    # print(x.shape)
 
     if df_dx_mode == 'forward':
         ####### CAUTION: CANNOT USE THIS FOR SHADERS WHERE P IS COMPUTED ON DEMAND INSTEAD OF A PROPERTY #######
@@ -712,8 +654,6 @@ def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_g
         # Forward mode AD not working for circles or for sphere raymarching
         # BE VERY VERY CAREFUL WITH TURNING THIS ON, FAILS INSIDIOUSLY WITH WRONG GRADIENTS (raymarching_opt.py)
         df_dx = torch.autograd.grad(f.sum(), x, create_graph=False, retain_graph=True)[0].detach()  # [N, 3]
-    # print(df_dx)
-    # print(df_dx.std(), df_dx.max(), df_dx.min())
     
     # Normalize the gradients
     df_dx_norm = torch.norm(df_dx, p=2, dim=1)  # [N]
@@ -796,17 +736,6 @@ def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_g
             
         if torch.isnan(df_dx_norm).any() or torch.isinf(df_dx_norm).any():
             print("Warning: NaN or Inf detected in df_dx_norm")
-        # print()
-        # # Print min and max values of key tensors
-        # print(f"p min: {p.min().item():.6e}, p max: {p.max().item():.6e}")
-        # print(f"delta_out min: {delta_out.min().item():.6e}, delta_out max: {delta_out.max().item():.6e}")
-        # print(f"f min: {f.min().item():.6e}, f max: {f.max().item():.6e}")
-        # print(f"df_dx_norm min: {df_dx_norm.min().item():.6e}, df_dx_norm max: {df_dx_norm.max().item():.6e}")
-        # print(f"num samples = {x.shape[0]}")
-        # print(f.requires_grad)
-        # dfdp = torch.autograd.grad(f.sum(), integrand.p, create_graph=False, retain_graph=True)[0].detach()  # [N, 3]
-        # print(dfdp)
-        # sdfs
 
         # TODO: there is some insanely weird bug in slang which makes the checkerboard derivative weird, need to hack around it for now
         if integrand.__class__.__name__ == "CheckerboardIntegrandSlang":
@@ -975,16 +904,8 @@ def plot_fwd_grad_ours_and_fd(dout_dp_ours, x_ours, fd_grad_img, vmax=0.01,grid_
     flat_indices = indices[:,0] * grid_size + indices[:,1]
     grid_values.scatter_add_(0, flat_indices, dout_dp_ours)
     grid_values = grid_values.reshape(grid_size, grid_size)
-    # print(grid_values)
-    # sdfs
 
-    # vmax = 1e-7
-    # vmax = 1e-5
-    # vmax = fd_grad_img.abs().max() / 4
     vmax = fd_grad_img.abs().max()
-
-    # print(grid_values.shape, fd_grad_img.shape)
-
 
     if plot_error:
         plt.figure(figsize=(24,8))

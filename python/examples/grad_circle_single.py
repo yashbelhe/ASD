@@ -43,36 +43,6 @@ def main():
     ref = -2.0 * math.pi * r  # analytic boundary derivative for area outside a circle
     print(f"boundary grad dI/dr ≈ {got:.6f}, reference (analytic) ≈ {ref:.6f}")
 
-    # Plots: primal, FD grad, our boundary grad vs FD
-    results_dir = repo_root / "results" / "circle"
-    results_dir.mkdir(parents=True, exist_ok=True)
-
-    # Finite-difference gradient grid
-    # from python.helpers import compute_and_plot_fwd_grad
-    # compute_and_plot_fwd_grad(
-    #     integrand,
-    #     p_idx=2,
-    #     plot_error=True,
-    #     FD_GRID_SIZE=256,
-    #     FD_AA_SIZE=16,
-    #     FD_EPS=1e-3,
-    #     OUR_GRID_SIZE=2000,
-    #     integrand_class_name="circle",
-    #     show_plot=False,
-    # )
-
-    # # Save primal image
-    # from python.helpers import points_on_grid
-    # pts = points_on_grid(512, jitter=False).to(device)
-    # img = integrand(pts).reshape(512, 512).detach().cpu().numpy()
-    # import matplotlib.pyplot as plt
-    # plt.figure(figsize=(4,4))
-    # plt.imshow(img, origin='lower', extent=[0,1,0,1], cmap='gray')
-    # plt.title("Primal output")
-    # plt.axis('off')
-    # plt.savefig(results_dir / "primal.png", dpi=200, bbox_inches="tight")
-    # plt.close()
-
     return got, ref
 
 

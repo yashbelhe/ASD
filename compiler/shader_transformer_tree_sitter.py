@@ -183,8 +183,7 @@ def _extract_disc_hash(node, source_code_bytes, window=256):
 
 
 def is_disc_if(node, source_code_bytes):
-# def is_float_if(node, source_code_bytes):
-    """Check if condition involves floats"""
+    """Check if condition has a [Disc] marker comment."""
     if node.type != 'if_statement':
         return False
     
@@ -195,46 +194,14 @@ def is_disc_if(node, source_code_bytes):
             return True
     return False
     
-    # condition = next((c for c in node.children if c.type == 'condition_clause'), None)
-    # if not condition:
-    #     return False
-    
-    # binary_expr = next((c for c in condition.children if c.type == 'binary_expression'), None)
-    # if binary_expr:
-    #     for child in binary_expr.children:
-    #         if child.type == 'identifier':
-    #             # Check if identifier is declared as float
-    #             var_name = source_code_bytes[child.start_byte:child.end_byte].decode('utf8')
-    #             if find_float_declaration(node, var_name, source_code_bytes):
-    #                 return True
-    #         elif child.type == 'number_literal':
-    #             # Check if literal contains decimal point
-    #             value = source_code_bytes[child.start_byte:child.end_byte].decode('utf8')
-    #             if '.' in value:
-    #                 return True
-    # return False
-
 def is_disc_else(node, source_bytes):
     """Check if node is a discontinuous else statement"""
     if node.type != 'else_clause':
         return False
-    # print(node.parent)
-    # print(source_bytes[node.parent.start_byte:node.parent.end_byte].decode('utf8'))
-    # sdfs
-    # print(node.parent)
-    # Check if this else clause belongs to a discontinuous if statement
-    # Find the parent if_statement
     parent = node.parent
     if parent and parent.type == 'if_statement':
-        # Check if the parent if_statement is a discontinuous if
-        # ret = is_disc_if(parent, source_bytes)
-        # # if ret:
-        # # print(ret)
-        # sdfsdf
-
         return is_disc_if(parent, source_bytes)
     return False
-    # return True
 
 def get_offset_from_cache(node, info, offset_type):
     """Get total offset for a node by walking up to find containing loops"""
@@ -304,10 +271,8 @@ def modify_if_statement(node, source_bytes, info, modifications, if_off, hash_gu
         implicit_test = (
             f"\n{indent}// ---- Start: implicit function test ----\n"
             f"{indent}if (ret_impl && abs({cond_value}) < abs(impl_fn[thread_idx])) {{\n"
-            # f"{indent}if (ret_impl && is_zero_level({cond_value})) {{\n"
             f"{indent}    impl_idx[thread_idx] = {if_off};\n"
             f"{indent}    impl_fn[thread_idx] = {cond_value};\n"
-            # f"{indent}    return;\n" # TODO: Uncomment this once Slang.D's bug is fixed
             f"{indent}}}\n"
             f"{indent}// ---- End: implicit function test ----\n\n{indent}"
         )
@@ -328,13 +293,6 @@ def modify_if_statement(node, source_bytes, info, modifications, if_off, hash_gu
                 f"{if_indent}}}\n"
             )
             modifications.append((insert_pos, insert_pos, snippet))
-        # Add hash statement after binary expression
-        # line_start = binary_expr.end_byte
-        # while line_start > 0 and source_bytes[line_start:line_start+1].decode('utf8') != '\n':
-        #     line_start += 1
-        # indent = len(source_bytes[line_start:node.start_byte].decode('utf8').expandtabs())
-        # modifications.append((binary_expr.end_byte, binary_expr.end_byte,
-        #     f"out_idx[thread_idx] = hash(out_idx[thread_idx], detecte);\n{' '*(indent)}"))
 
 
 def modify_else_statement(node, source_bytes, info, modifications, if_off, hash_guard=None):
@@ -488,18 +446,6 @@ def modify_disc_func_def(node, source_bytes, modifications):
             if c.type == 'compound_statement':
                 modifications.append((c.start_byte + 1, c.start_byte + 1, "\n    bool should_force = force_sign != -1;\n    bool force_value = force_sign == 0;\n    int if_off = 0; \n    int out_off = 0; \n\n"))
                 break
-
-                    # for chch in ch.children:
-                    #     print(f"Child3 type: {chch.type}")
-                    # print(f"Parameter list text: {source_bytes[ch.start_byte:ch.end_byte].decode('utf8')}")
-        # print(f"Child1 type: {c.type}")
-        # for ch in c.children:
-        #     print(f"Child2 type: {ch.type}")
-    # sdfs
-        # if c.type == 'function_declarator':
-        #     for ch in c.children:
-        #         if ch.type == 'identifier':
-        #             func_name = source_bytes[ch.start_byte:ch.end_byte].decode('utf8')
     
     
 
@@ -693,23 +639,13 @@ def process_node_dfs(node, source_bytes, info, mode, mod_ctx_=None, modification
                     node_info['total_ifs'] += disc_func_total_ifs
                     node_info['total_outs'] += disc_func_total_outs
                 elif mode == "modify":
-                    # Only add modifications in second pass
-                    # print(f"Modifying call expression for {name} \n"
-                    #       f"with if_off: {counter_list_to_string(mod_ctx['curr_ifs'])} \n"
-                    #       f"and out_off: {counter_list_to_string(mod_ctx['curr_outs'])}\n")
-                    # sdfs
-                    # print(mod_ctx['curr_ifs'])
-                    # print(mod_ctx['curr_outs'])
                     is_start_func = name == 'start'
                     modify_call_expression(node, source_bytes, info, modifications, counter_list_to_string(mod_ctx['curr_ifs']), counter_list_to_string(mod_ctx['curr_outs']), is_start_func)
                     mod_ctx['curr_ifs'].append(disc_func_total_ifs)
                     mod_ctx['curr_outs'].append(disc_func_total_outs)
     
-    # Process children
     child_ifs = 0
     child_outs = 0
-    # ch_mod_ctx = copy.deepcopy(mod_ctx
-    # ch_mod_ctx = copy.deepcopy(mod_ctx)
     for child in node.children:
         ret = process_node_dfs(
             child, 
@@ -717,7 +653,6 @@ def process_node_dfs(node, source_bytes, info, mode, mod_ctx_=None, modification
             info, 
             mode,
             mod_ctx,
-            # ch_mod_ctx,
             modifications,
             parent_loop=node.id if node.type == 'for_statement' else parent_loop
         )
@@ -726,16 +661,6 @@ def process_node_dfs(node, source_bytes, info, mode, mod_ctx_=None, modification
             if child_info:
                 child_ifs += child_info['total_ifs']
                 child_outs += child_info['total_outs']
-        # elif mode == "modify":
-        #     ch_mod_ctx = ret
-        #     if is_output_node(child):
-        #         print(ch_mod_ctx['curr_outs'])
-        #         print(node.parent.type)
-    
-    # if mode == "collect" and is_for_loop(node):
-    #     # Get the full loop text including the for statement
-    #     loop_text = source_bytes[node.start_byte:node.end_byte].decode('utf8')
-    #     print(f"Complete for loop:\n{loop_text}")
     
     if mode == "collect":
         if is_for_loop(node):
@@ -848,7 +773,6 @@ def transform_shader(source_bytes, tree):
         print(f"  Total if statements: {stats['total_ifs']}")
         print(f"  Total outs: {stats['total_outs']}")
     print("-" * 40 + "\n")
-    # sdfs
 
     # Second pass: Collect all modifications
     modifications = []
