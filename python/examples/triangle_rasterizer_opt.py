@@ -242,23 +242,23 @@ def main():
         area_samples = points_on_grid(args.gt_resolution * args.aa_train, jitter=True).to(device)
         preds = render_with_samples(integrand, area_samples, args.gt_resolution, args.aa_train)
         target_img_gpu = target_imgs[view_idx].to(device)
-        pixel_loss = (preds - target_img_gpu).square().mean()
+        area_loss = (preds - target_img_gpu).square().mean()
         cfg.mode_aux_data = target_img_gpu.detach()
         edge_loss = boundary_loss_slang(integrand, cfg)
         cfg.mode_aux_data = None
         del target_img_gpu
-        total_loss = pixel_loss + edge_loss
+        total_loss = area_loss + edge_loss
         total_loss.backward()
 
         accum_counter += 1
-        block_loss += pixel_loss.item()
+        block_loss += area_loss.item()
 
         if accum_counter == args.views_per_step or step == args.num_iters - 1:
             optimizer.step()
             optimizer.zero_grad()
             avg_loss = block_loss / accum_counter
             loss_history.append(avg_loss)
-            print(f"Iter {step + 1:05d} | view {view_idx:04d} | pixel={avg_loss:.6f} | edge={edge_loss.item():.6f}")
+            print(f"Iter {step + 1:05d} | view {view_idx:04d} | area={avg_loss:.6f} | edge={edge_loss.item():.6f}")
 
             if args.save_every > 0 and len(loss_history) % args.save_every == 0:
                 prev = integrand.active_view
@@ -286,7 +286,7 @@ def main():
     plt.figure()
     plt.semilogy(loss_history)
     plt.xlabel("Optimizer step")
-    plt.ylabel("Pixel loss")
+    plt.ylabel("Area loss")
     plt.savefig(run_dir / "loss_history.png", dpi=300, bbox_inches="tight")
     plt.close()
 

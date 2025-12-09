@@ -160,7 +160,6 @@ def parse_args():
     parser.add_argument("--edge-plot-resolution", type=int, default=1000)
     parser.add_argument("--edge-mode", choices=["L2_test_fn", "L2_img", "L1_img"], default="L2_test_fn")
     parser.add_argument("--df-dx-mode", choices=["forward", "backward"], default="backward")
-    parser.add_argument("--pixel-weight", type=float, default=0.0)
     parser.add_argument("--slice-axis", type=int, default=2, choices=[0, 1, 2])
     parser.add_argument("--num-slices", type=int, default=5)
     parser.add_argument("--gif-duration", type=float, default=0.5)
@@ -229,13 +228,13 @@ def main():
         pts = points_on_grid(args.sample_res, jitter=True, dim=3).to(device)
         preds = integrand(pts)
         target_vals = target_fn(pts)
-        pixel_loss = (preds - target_vals).square().mean()
+        area_loss = (preds - target_vals).square().mean()
         boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = args.pixel_weight * pixel_loss + boundary_loss
+        total_loss = area_loss + boundary_loss
         total_loss.backward()
         optimizer.step()
 
-        loss_history.append(pixel_loss.item())
+        loss_history.append(area_loss.item())
         if step % args.log_every == 0:
             print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
 

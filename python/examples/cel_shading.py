@@ -76,9 +76,9 @@ def train(integrand, args, device, boundary_cfg, target_img, results_dir):
             integrand.out_dim,
         ).mean(dim=(1, 3))
 
-        pixel_loss = (preds - target_img).square().mean()
+        area_loss = (preds - target_img).square().mean()
         boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = pixel_loss + boundary_loss
+        total_loss = area_loss + boundary_loss
         total_loss.backward()
         optimizer.step()
 

@@ -12,16 +12,16 @@ from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_gr
 from python.integrands import VoronoiGridIntegrandSlang  # noqa: E402
 
 
-def pixel_loss_tensor(integrand, pts):
+def area_loss_tensor(integrand, pts):
     vals = integrand(pts)
     return vals.sum(dim=-1).mean()
 
 
 def total_loss_value(integrand, pts, cfg):
     with torch.no_grad():
-        pixel = integrand(pts).sum(dim=-1).mean().item()
+        area = integrand(pts).sum(dim=-1).mean().item()
         boundary = boundary_loss_slang(integrand, cfg).item()
-    return pixel + boundary
+    return area + boundary
 
 
 def main():
@@ -37,9 +37,9 @@ def main():
     eps = 1e-4
 
     integrand.zero_grad()
-    pixel_loss = pixel_loss_tensor(integrand, sample_points)
+    area_loss = area_loss_tensor(integrand, sample_points)
     boundary_loss = boundary_loss_slang(integrand, cfg)
-    total_loss = pixel_loss + boundary_loss
+    total_loss = area_loss + boundary_loss
     total_loss.backward()
     total_grads = integrand.p.grad.detach().cpu().numpy()
 

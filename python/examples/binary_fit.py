@@ -81,7 +81,7 @@ def train_integrand(integrand, args, device, results_dir, boundary_cfg, target_i
 
         samples = points_on_grid(args.gt_resolution * args.aa_train, jitter=True).to(device)
         preds = reshape_and_average(integrand(samples), args.gt_resolution, args.aa_train)
-        pixel_loss = (preds - target_img).square().mean()
+        area_loss = (preds - target_img).square().mean()
         boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
         total_loss = boundary_loss
         total_loss.backward()

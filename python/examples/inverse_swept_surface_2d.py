@@ -175,7 +175,7 @@ def train_integrand(integrand, gt_fn, args, device, boundary_cfg, run_dir):
         preds = integrand(samples)
         target = gt_fn(samples)
 
-        pixel_loss = (preds - target).square().mean()
+        area_loss = (preds - target).square().mean()
         boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
         total_loss = boundary_loss
         total_loss.backward()
@@ -183,7 +183,7 @@ def train_integrand(integrand, gt_fn, args, device, boundary_cfg, run_dir):
         if scheduler is not None:
             scheduler.step()
 
-        history.append((pixel_loss.item(), boundary_loss.item()))
+        history.append((area_loss.item(), boundary_loss.item()))
         if args.log_every and step % args.log_every == 0:
             print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
 
@@ -341,7 +341,7 @@ def main():
 
     plt.figure()
     plt.title("Loss History")
-    plt.semilogy([h[0] for h in history], label="Pixel")
+    plt.semilogy([h[0] for h in history], label="Area")
     plt.semilogy([h[1] for h in history], label="Boundary")
     plt.legend()
     plt.xlabel("Iteration")

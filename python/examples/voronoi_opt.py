@@ -2,8 +2,8 @@
 Voronoi texture optimization example (non-accel, non-warp version).
 
 Matches the behavior of the original `voronoi_opt.py` script by optimizing a
-Voronoi diagram so that its rasterized colors match a target RGB image using a
-pixel loss plus the boundary integral loss.
+Voronoi diagram so that its rasterized colors match a target RGB image using an
+area loss plus the boundary integral loss.
 """
 
 import argparse
@@ -110,7 +110,7 @@ def main():
     parser.add_argument("--grid-size", type=int, default=30, help="Number of cells per axis for the Voronoi sites.")
     parser.add_argument("--num-iter", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-2)
-    parser.add_argument("--pixel-loss", choices=["L1", "L2"], default="L2")
+    parser.add_argument("--area-loss", choices=["L1", "L2"], default="L2")
     parser.add_argument("--gt-resolution", type=int, default=512)
     parser.add_argument("--aa-train", type=int, default=4, help="AA factor used during training renders.")
     parser.add_argument("--aa-eval", type=int, default=16, help="AA factor for final renders.")
@@ -156,7 +156,7 @@ def main():
         div_eps=args.div_eps,
         plot_resolution=args.plot_resolution,
         kde_k=args.kde_k,
-        mode="L1_img" if args.pixel_loss == "L1" else "L2_img",
+        mode="L1_img" if args.area_loss == "L1" else "L2_img",
         mode_aux_data=target_img.detach(),
     )
 
@@ -180,21 +180,21 @@ def main():
             integrand.out_dim,
         ).mean(dim=(1, 3))
 
-        if args.pixel_loss == "L1":
-            pixel_loss = (preds - target_img).abs().mean()
+        if args.area_loss == "L1":
+            area_loss = (preds - target_img).abs().mean()
         else:
-            pixel_loss = (preds - target_img).square().mean()
+            area_loss = (preds - target_img).square().mean()
 
         edge_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = pixel_loss + edge_loss
+        total_loss = area_loss + edge_loss
         total_loss.backward()
 
         optimizer.step()
         lr_scheduler.step()
 
-        loss_history.append(pixel_loss.item())
+        loss_history.append(area_loss.item())
         if step % 1 == 0:
-            print(f"Iter {step:04d} | pixel={pixel_loss.item():.6f} | edge={edge_loss.item():.6f}")
+            print(f"Iter {step:04d} | area={area_loss.item():.6f} | edge={edge_loss.item():.6f}")
 
         if step % args.save_every == 0:
             save_intermediate(preds, run_dir / f"result_iteration_{step:04d}.png")
@@ -210,7 +210,7 @@ def main():
     save_intermediate(final, run_dir / "final.png")
 
     plt.figure()
-    plt.title("Pixel loss history")
+    plt.title("Area loss history")
     plt.semilogy(loss_history)
     plt.xlabel("Iteration")
     plt.ylabel("Loss")

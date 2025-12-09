@@ -111,11 +111,11 @@ def save_loss_plot(history, path):
     if not history:
         return
     iters = range(len(history))
-    pixel = [h[0] for h in history]
+    area = [h[0] for h in history]
     boundary = [h[1] for h in history]
     plt.figure()
     plt.title("Loss History")
-    plt.semilogy(list(iters), pixel, label="Pixel")
+    plt.semilogy(list(iters), area, label="Area")
     plt.semilogy(list(iters), boundary, label="Boundary")
     plt.legend()
     plt.xlabel("Iteration")
@@ -233,20 +233,20 @@ def train_integrand(
 
         if args.use_test_fn:
             target_vals = gt_fn(samples)
-            pixel_loss = (preds - target_vals).square().mean()
+            area_loss = (preds - target_vals).square().mean()
             train_img = reshape_and_average(preds, args.train_resolution, args.aa_train)
         else:
             if target_img_train is None:
                 raise RuntimeError("target_img_train must be provided when --no-test-fn is used.")
             train_img = reshape_and_average(preds, args.train_resolution, args.aa_train)
-            pixel_loss = (train_img - target_img_train).square().mean()
+            area_loss = (train_img - target_img_train).square().mean()
 
         boundary = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = boundary + args.pixel_loss_weight * pixel_loss
+        total_loss = boundary + area_loss
         total_loss.backward()
         optimizer.step()
 
-        history.append((pixel_loss.item(), boundary.item()))
+        history.append((area_loss.item(), boundary.item()))
 
         if args.log_every and step % args.log_every == 0:
             print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
@@ -282,7 +282,6 @@ def parse_args():
     parser.add_argument("--boundary-kde-k", type=int, default=14)
     parser.add_argument("--boundary-div-eps", type=float, default=1e-15)
     parser.add_argument("--boundary-plot-resolution", type=int, default=1000)
-    parser.add_argument("--pixel-loss-weight", type=float, default=0.0)
     parser.add_argument("--snapshot-iters", type=int, nargs="*", default=[10])
     parser.add_argument("--save-swept-path", action="store_true")
     parser.add_argument("--start-step", type=int, default=0)

@@ -174,7 +174,7 @@ def parse_args():
     parser.add_argument("--aa-target", type=int, default=16)
     parser.add_argument("--aa-train", type=int, default=1)
     parser.add_argument("--aa-eval", type=int, default=16)
-    parser.add_argument("--pixel-loss", choices=["L1", "L2"], default="L2")
+    parser.add_argument("--area-loss", choices=["L1", "L2"], default="L2")
     parser.add_argument("--edge-loss-mode", type=str, default="L1_img")
     parser.add_argument("--edge-grid", type=int, default=5000)
     parser.add_argument("--num-subdivision", type=int, default=20)
@@ -299,14 +299,14 @@ def main():
             ellipsoids.out_dim,
         ).mean(dim=(1, 3))
 
-        if args.pixel_loss == "L1":
-            pixel_loss = (preds - target_img).abs().mean()
+        if args.area_loss == "L1":
+            area_loss = (preds - target_img).abs().mean()
         else:
-            pixel_loss = (preds - target_img).square().mean()
+            area_loss = (preds - target_img).square().mean()
 
         cfg.mode_aux_data = target_img.detach()
         edge_loss = boundary_loss_slang(ellipsoids, cfg)
-        total = pixel_loss + edge_loss
+        total = area_loss + edge_loss
         total.backward()
 
         split_count = 0
@@ -333,9 +333,9 @@ def main():
             if group.get("name") == "center":
                 group["lr"] = new_center_lr
 
-        loss_history.append(pixel_loss.item())
+        loss_history.append(area_loss.item())
         print(
-            f"Iter {step:04d} | pixel={pixel_loss.item():.6f} "
+            f"Iter {step:04d} | area={area_loss.item():.6f} "
             f"edge={edge_loss.item():.6f} | split={split_count} prune={prune_count}"
         )
 
@@ -366,7 +366,7 @@ def main():
     save_tensor_image(run_dir / "final.png", final)
 
     plt.figure()
-    plt.title("Pixel loss")
+    plt.title("Area loss")
     plt.semilogy(loss_history)
     plt.xlabel("Iteration")
     plt.ylabel("Loss")

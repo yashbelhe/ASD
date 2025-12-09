@@ -2,7 +2,7 @@
 Implicit grid raymarching optimization example.
 
 Matches renders of a volumetric implicit function (by default a sphere) by
-optimizing a trilinear grid using boundary + pixel losses across multiple
+optimizing a trilinear grid using boundary + area losses across multiple
 camera views.
 """
 
@@ -108,7 +108,6 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--save-every", type=int, default=100)
     parser.add_argument("--log-every", type=int, default=50)
-    parser.add_argument("--pixel-weight", type=float, default=0.0)
     parser.add_argument("--gif-duration", type=float, default=0.2)
     parser.add_argument("--edge-sample-res", type=int, default=1000)
     parser.add_argument("--edge-num-subdivision", type=int, default=20)
@@ -188,16 +187,16 @@ def main():
 
         preds = render_image(integrand, args.gt_resolution, args.aa_train, jitter=True, device=device)
         target_img = target_views[view_idx]
-        pixel_loss = (preds - target_img).square().mean()
+        area_loss = (preds - target_img).square().mean()
 
         boundary_cfg.mode_aux_data = target_img.detach()
         boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = args.pixel_weight * pixel_loss + boundary_loss
+        total_loss = area_loss + boundary_loss
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
 
-        loss_history.append(pixel_loss.item())
+        loss_history.append(area_loss.item())
         if step % args.log_every == 0:
             print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
 
@@ -210,10 +209,10 @@ def main():
     torch.save(integrand.grid_values.detach().cpu(), results_dir / "final_grid.pt")
 
     plt.figure()
-    plt.title("Pixel Loss History")
+    plt.title("Area Loss History")
     plt.semilogy(loss_history)
     plt.xlabel("Iteration")
-    plt.ylabel("Pixel Loss")
+    plt.ylabel("Area Loss")
     plt.grid(True, which="both")
     plt.savefig(results_dir / "loss_history.png", dpi=300, bbox_inches="tight")
     plt.close()

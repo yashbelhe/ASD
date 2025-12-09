@@ -358,10 +358,15 @@ def _create_bezier_constant_block(x0, y0, x1, y1, x2, y2, width, color, opacity)
     return block
 
 
-_accel_setup_kernel = slangtorch.loadModule("slang/__gen__accel_structure_setup.slang")
-
-
-def _build_acceleration_structure(primitive_types, control_points, stroke_widths, grid_size, max_elements_per_cell, device):
+def _build_acceleration_structure(
+    primitive_types,
+    control_points,
+    stroke_widths,
+    grid_size,
+    max_elements_per_cell,
+    device,
+    accel_setup_kernel,
+):
     """GPU implementation of the acceleration structure builder for all supported primitives."""
     num_primitives = primitive_types.shape[0]
     grid_tensor = torch.zeros(
@@ -372,7 +377,7 @@ def _build_acceleration_structure(primitive_types, control_points, stroke_widths
     primitive_indices = torch.arange(num_primitives, device=device, dtype=torch.int32)
     control = control_points.view(-1, 6)
     launch_1d(
-        _accel_setup_kernel.setup_unified_acceleration_structure(
+        accel_setup_kernel.setup_unified_acceleration_structure(
             primitive_types=primitive_types.int(),
             control_points=control.float(),
             stroke_widths=stroke_widths.float().unsqueeze(-1),
@@ -407,6 +412,7 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
         self.max_elements_per_cell = max_elements_per_cell
         self.background_color = torch.tensor(background_color, dtype=torch.float32)
         self.primitive_type = primitive_type
+        self._accel_setup_kernel = slangtorch.loadModule("slang/accel_structure_setup.slang")
 
         torch.manual_seed(seed if seed is not None else 42)
         params = []
@@ -493,6 +499,7 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
             self.grid_size,
             self.max_elements_per_cell,
             device,
+            self._accel_setup_kernel,
         ).reshape(-1)
 
         header = torch.tensor(
@@ -628,6 +635,7 @@ class TriangleRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
         self.lambda_ = 19.0
         self.out_dim = 3
         self.active_view = 0
+        self._accel_setup_kernel = slangtorch.loadModule("slang/accel_structure_setup.slang")
 
         vertices, faces = _load_ply_mesh(ply_file)
         vertices = _normalize_vertices(vertices.float(), self.scale)
@@ -731,6 +739,7 @@ class TriangleRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
             self.grid_size,
             self.max_elements_per_cell,
             device,
+            self._accel_setup_kernel,
         )
         grid_int = grid.to(torch.int64)
         counts = grid_int[..., 0].clamp_(min=0, max=self.max_elements_per_cell)
@@ -783,6 +792,7 @@ class EllipsoidRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
         self.num_views = max(1, num_view)
         self.out_dim = 3
         self.active_view = 0
+        self._accel_setup_kernel = slangtorch.loadModule("slang/accel_structure_setup.slang")
 
         if seed is not None:
             torch.manual_seed(seed)
@@ -899,6 +909,7 @@ class EllipsoidRasterizerIntegrandSlang(BaseIntegrandSlangRGB):
             self.grid_size,
             self.max_elements_per_cell,
             device,
+            self._accel_setup_kernel,
         ).reshape(-1)
 
         header = torch.tensor(

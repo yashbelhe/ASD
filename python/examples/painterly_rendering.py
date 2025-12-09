@@ -1,6 +1,6 @@
 """
 Painterly rendering example that optimizes a stack of parametric line strokes
-to match a target image using pixel + boundary losses.
+to match a target image using area + boundary losses.
 
 This is a trimmed port of the original `painterly_rendering.py` that keeps only
 the pieces exercised by the line-based setup.
@@ -109,7 +109,7 @@ def main():
     parser.add_argument("--max-elements", type=int, default=200, help="Max primitives per acceleration cell.")
     parser.add_argument("--num-iter", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--pixel-loss", choices=["L1", "L2"], default="L2")
+    parser.add_argument("--area-loss", choices=["L1", "L2"], default="L2")
     parser.add_argument("--gt-resolution", type=int, default=512)
     parser.add_argument("--aa-train", type=int, default=1)
     parser.add_argument("--aa-eval", type=int, default=4)
@@ -150,7 +150,7 @@ def main():
         kde_k=args.kde_k,
         div_eps=args.div_eps,
         plot_resolution=args.plot_resolution,
-        mode="L1_img" if args.pixel_loss == "L1" else "L2_img",
+        mode="L1_img" if args.area_loss == "L1" else "L2_img",
         mode_aux_data=target.detach(),
     )
 
@@ -180,13 +180,13 @@ def main():
             integrand.out_dim,
         ).mean(dim=(1, 3))
 
-        if args.pixel_loss == "L1":
-            pixel_loss = (preds - target).abs().mean()
+        if args.area_loss == "L1":
+            area_loss = (preds - target).abs().mean()
         else:
-            pixel_loss = (preds - target).square().mean()
+            area_loss = (preds - target).square().mean()
 
         edge_loss = boundary_loss_slang(integrand, cfg)
-        total = pixel_loss + edge_loss
+        total = area_loss + edge_loss
         total.backward()
 
         if not args.optimize_opacity and integrand.opacities.grad is not None:
@@ -196,9 +196,9 @@ def main():
         optimizer.zero_grad()
         lr_scheduler.step()
 
-        loss_history.append(pixel_loss.item())
+        loss_history.append(area_loss.item())
         if step % 10 == 0:
-            print(f"Iter {step:04d} | pixel={pixel_loss.item():.6f}")
+            print(f"Iter {step:04d} | area={area_loss.item():.6f}")
 
         if step % args.save_every == 0:
             save_tensor_image(run_dir / f"iter_{step:04d}.png", preds)
@@ -208,7 +208,7 @@ def main():
     save_tensor_image(run_dir / "final.png", final)
 
     plt.figure()
-    plt.title("Pixel loss")
+    plt.title("Area loss")
     plt.semilogy(loss_history)
     plt.xlabel("Iteration")
     plt.ylabel("Loss")
