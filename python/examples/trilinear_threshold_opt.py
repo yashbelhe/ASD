@@ -237,7 +237,7 @@ def main():
 
         loss_history.append(pixel_loss.item())
         if step % args.log_every == 0:
-            print(f"Iter {step:04d} | pixel={pixel_loss.item():.6f} | boundary={boundary_loss.item():.6f}")
+            print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
 
         if step % args.save_every == 0 or step == args.num_iter - 1:
             plane = 0.5

@@ -88,10 +88,7 @@ def train_integrand(integrand, args, device, results_dir, boundary_cfg, target_i
         optimizer.step()
 
         if step % args.log_every == 0:
-            print(
-                f"Iter {step:04d} | pixel={pixel_loss.item():.6f} | "
-                f"boundary={boundary_loss.item():.6f}"
-            )
+            print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
 
         if args.save_every > 0 and step % args.save_every == 0 and step > 0:
             eval_img = render_integrand_image(integrand, args.gt_resolution, args.aa_eval, jitter=False, device=device)

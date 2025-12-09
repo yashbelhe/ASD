@@ -185,10 +185,7 @@ def train_integrand(integrand, gt_fn, args, device, boundary_cfg, run_dir):
 
         history.append((pixel_loss.item(), boundary_loss.item()))
         if args.log_every and step % args.log_every == 0:
-            print(
-                f"Iter {step:04d} | pixel={pixel_loss.item():.6f} "
-                f"| boundary={boundary_loss.item():.6f}"
-            )
+            print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
 
         should_save = args.save_every > 0 and (step % args.save_every == 0 or step == args.num_iter - 1)
         if should_save:
