@@ -1,6 +1,5 @@
 # %%
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 import plyfile
 import igl
@@ -179,85 +178,3 @@ class MeshInsideOutsideTest:
         print(f"Y-axis: min={stats['y']['min']:.4f}, mean={stats['y']['mean']:.4f}, max={stats['y']['max']:.4f}, std={stats['y']['std']:.4f}")
         print(f"Z-axis: min={stats['z']['min']:.4f}, mean={stats['z']['mean']:.4f}, max={stats['z']['max']:.4f}, std={stats['z']['std']:.4f}")
         print(f"Overall: min={stats['overall']['min']:.4f}, mean={stats['overall']['mean']:.4f}, max={stats['overall']['max']:.4f}, std={stats['overall']['std']:.4f}")
-
-
-def main():
-    # Path to the PLY file
-    ply_file = "/home/yash/Documents/nie/data/vbunny.ply"  # Replace with your PLY file path
-    
-    # Create the inside-outside tester
-    inside_outside_test = MeshInsideOutsideTest(ply_file)
-    
-    # Print mesh statistics
-    inside_outside_test.print_stats()
-    
-    # Parameters
-    resolution = 1024  # Resolution for each slice
-    num_slices = 50  # Number of slices
-    plane_values = np.linspace(0.0, 1.0, num_slices)  # Evenly spaced slices from z=0 to z=1
-    constant_axis = 2  # Slice along z-axis
-    
-    # Grid layout
-    cols = 3
-    rows = num_slices // cols + 1
-    
-    # Create a figure with subplots
-    fig, axes = plt.subplots(rows, cols, figsize=(10, 10/cols*rows))
-    axes = axes.flatten()  # Flatten to make indexing easier
-    
-    # Compute and plot slices
-    for i, plane_value in enumerate(plane_values):
-        # Time the computation
-        import time
-        start_time = time.time()
-        
-        # Compute the slice
-        inside, axis_names = inside_outside_test.compute_slice(resolution, plane_value, constant_axis)
-        
-        elapsed = time.time() - start_time
-        
-        # Plot the slice
-        axes[i].imshow(inside, origin='lower', extent=[0, 1, 0, 1], cmap='viridis')
-        axes[i].set_title(f'z={plane_value:.2f}', fontsize=8)
-        
-        # Only add axis labels to the leftmost and bottom subplots
-        if i % cols == 0:  # Leftmost column
-            axes[i].set_ylabel(axis_names[1], fontsize=8)
-        if i >= (rows-1) * cols:  # Bottom row
-            axes[i].set_xlabel(axis_names[0], fontsize=8)
-        
-        # Remove tick labels for cleaner appearance
-        axes[i].set_xticks([])
-        axes[i].set_yticks([])
-    
-    plt.tight_layout()
-    plt.subplots_adjust(wspace=0.05, hspace=0.2)  # Reduce spacing between subplots
-    plt.show()
-
-# Example of using the class directly for inside-outside testing
-def example_usage():
-    # Create the inside-outside tester
-    tester = MeshInsideOutsideTest("/home/yash/Documents/nie/data/vbunny.ply")
-    
-    # Create some test points
-    test_points = np.array([
-        [0.5, 0.5, 0.5],  # Center of the normalized space
-        [0.1, 0.1, 0.1],  # Near a corner
-        [0.9, 0.9, 0.9],  # Near opposite corner
-        [0.0, 0.0, 0.0],  # At a corner
-        [1.0, 1.0, 1.0]   # At opposite corner
-    ])
-    
-    # Test if points are inside
-    results = tester(test_points)
-    
-    # Print results
-    for i, point in enumerate(test_points):
-        status = "inside" if results[i] else "outside"
-        print(f"Point {point} is {status} the mesh")
-
-if __name__ == "__main__":
-    main()
-    # Uncomment to run the example usage
-    # example_usage()
-# %% 

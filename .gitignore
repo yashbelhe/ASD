@@ -1,3 +1,5 @@
 results/
 *.pyc
-.slangtorch_cache/
+**/__pycache__/
+slang/__gen__*.slang*
+**/.slangtorch_cache/
