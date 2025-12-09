@@ -108,65 +108,6 @@ def _compute_delta_outputs(integrand, x, f_min_idx, mode, mode_aux_data, mask_fn
             delta_out *= mask_fn(x).unsqueeze(-1)
     return delta_out
 
-
-def edge_loss_slang(
-    integrand,
-    dim=2,
-    GRID_SIZE=2000,
-    plot_segments=False,
-    fwd_grad=(False, -1),
-    NUM_SUBDIVISION=20,
-    DIV_EPS=1e-15,
-    PLOT_RESOLUTION=1000,
-    KDE_K=9,
-    mode='direct',
-    mode_aux_data=None,
-    df_dx_mode='forward',
-    mask_fn=None,
-    custom_segments=None,
-    custom_x=None,
-):
-    assert mode in ['direct', 'L2_img', 'L2_test_fn', 'L1_img', 'L1_test_fn']
-
-    x = _sample_edge_points(
-        dim,
-        GRID_SIZE,
-        NUM_SUBDIVISION,
-        custom_segments,
-        custom_x,
-        integrand,
-    )
-
-    f, f_min_idx = integrand(x, ret_impl=True)
-    _plot_segments_if_needed(integrand, x, f_min_idx, dim, PLOT_RESOLUTION, plot_segments)
-
-    p, f_min_idx = _compute_kde_weights(x, f_min_idx, KDE_K)
-    df_dx = _compute_df_dx(integrand, x, p, df_dx_mode, f)
-    df_dx_norm = torch.norm(df_dx, p=2, dim=1).detach().clamp(min=1e-1, max=1e4)
-    delta_out = _compute_delta_outputs(integrand, x, f_min_idx, mode, mode_aux_data, mask_fn)
-
-    p = p.unsqueeze(-1)
-    f = f.unsqueeze(-1)
-    df_dx_norm = df_dx_norm.unsqueeze(-1)
-
-    if fwd_grad[0]:
-        dp = torch.zeros_like(p)
-        if isinstance(fwd_grad[1], int):
-            dp[fwd_grad[1]] = 1.0
-        else:
-            dp = fwd_grad[1]
-        dx = torch.zeros_like(x)
-        df_dp0 = integrand.forward_grad(x, dx, dp, ret_impl=True)[1].unsqueeze(-1)
-        return (p * delta_out * df_dp0 / (df_dx_norm + DIV_EPS)), x
-
-    for tensor, name in ((p, 'p'), (delta_out, 'delta_out'), (f, 'f'), (df_dx_norm, 'df_dx_norm')):
-        if torch.isnan(tensor).any() or torch.isinf(tensor).any():
-            print(f"Warning: NaN or Inf detected in {name}")
-
-    return (p * delta_out * f / (df_dx_norm + DIV_EPS)).sum()
-
-
-
 @dataclass
 class BoundaryLossConfig:
     dim: int = 2
@@ -185,23 +126,79 @@ class BoundaryLossConfig:
     custom_x: any = None
 
 
-def boundary_loss(integrand, cfg: BoundaryLossConfig):
-    """Wrapper around edge_loss_slang using a config object."""
-    return edge_loss_slang(
+def _pop(kwargs, name, default):
+    name_lower = name.lower()
+    if name in kwargs:
+        return kwargs.pop(name)
+    if name_lower in kwargs:
+        return kwargs.pop(name_lower)
+    return default
+
+
+def boundary_loss(integrand, cfg=None, **kwargs):
+    """
+    Compute the boundary loss. Accepts either a BoundaryLossConfig or the legacy keyword arguments.
+    """
+    if isinstance(cfg, BoundaryLossConfig):
+        if kwargs:
+            raise TypeError(f"Unexpected keyword arguments: {list(kwargs.keys())}")
+        config = cfg
+    else:
+        dim = cfg if cfg is not None else _pop(kwargs, "dim", 2)
+        config = BoundaryLossConfig(
+            dim=dim,
+            grid_size=_pop(kwargs, "GRID_SIZE", 2000),
+            plot_segments=_pop(kwargs, "plot_segments", False),
+            fwd_grad=_pop(kwargs, "fwd_grad", (False, -1)),
+            num_subdivision=_pop(kwargs, "NUM_SUBDIVISION", 20),
+            div_eps=_pop(kwargs, "DIV_EPS", 1e-15),
+            plot_resolution=_pop(kwargs, "PLOT_RESOLUTION", 1000),
+            kde_k=_pop(kwargs, "KDE_K", 9),
+            mode=_pop(kwargs, "mode", "direct"),
+            mode_aux_data=_pop(kwargs, "mode_aux_data", None),
+            df_dx_mode=_pop(kwargs, "df_dx_mode", "forward"),
+            mask_fn=_pop(kwargs, "mask_fn", None),
+            custom_segments=_pop(kwargs, "custom_segments", None),
+            custom_x=_pop(kwargs, "custom_x", None),
+        )
+        if kwargs:
+            raise TypeError(f"Unexpected keyword arguments: {list(kwargs.keys())}")
+    
+    assert cfg.mode in ['direct', 'L2_img', 'L2_test_fn', 'L1_img', 'L1_test_fn']
+
+    x = _sample_edge_points(
+        cfg.dim,
+        cfg.grid_size,
+        cfg.num_subdivision,
+        cfg.custom_segments,
+        cfg.custom_x,
         integrand,
-        dim=cfg.dim,
-        GRID_SIZE=cfg.grid_size,
-        plot_segments=cfg.plot_segments,
-        fwd_grad=cfg.fwd_grad,
-        NUM_SUBDIVISION=cfg.num_subdivision,
-        DIV_EPS=cfg.div_eps,
-        PLOT_RESOLUTION=cfg.plot_resolution,
-        KDE_K=cfg.kde_k,
-        mode=cfg.mode,
-        mode_aux_data=cfg.mode_aux_data,
-        df_dx_mode=cfg.df_dx_mode,
-        mask_fn=cfg.mask_fn,
-        custom_segments=cfg.custom_segments,
-        custom_x=cfg.custom_x,
     )
 
+    f, f_min_idx = integrand(x, ret_impl=True)
+    _plot_segments_if_needed(integrand, x, f_min_idx, cfg.dim, cfg.plot_resolution, cfg.plot_segments)
+
+    p, f_min_idx = _compute_kde_weights(x, f_min_idx, cfg.kde_k)
+    df_dx = _compute_df_dx(integrand, x, p, cfg.df_dx_mode, f)
+    df_dx_norm = torch.norm(df_dx, p=2, dim=1).detach().clamp(min=1e-1, max=1e4)
+    delta_out = _compute_delta_outputs(integrand, x, f_min_idx, cfg.mode, cfg.mode_aux_data, cfg.mask_fn)
+
+    p = p.unsqueeze(-1)
+    f = f.unsqueeze(-1)
+    df_dx_norm = df_dx_norm.unsqueeze(-1)
+
+    if cfg.fwd_grad[0]:
+        dp = torch.zeros_like(p)
+        if isinstance(cfg.fwd_grad[1], int):
+            dp[cfg.fwd_grad[1]] = 1.0
+        else:
+            dp = cfg.fwd_grad[1]
+        dx = torch.zeros_like(x)
+        df_dp0 = integrand.forward_grad(x, dx, dp, ret_impl=True)[1].unsqueeze(-1)
+        return (p * delta_out * df_dp0 / (df_dx_norm + cfg.div_eps)), x
+
+    for tensor, name in ((p, 'p'), (delta_out, 'delta_out'), (f, 'f'), (df_dx_norm, 'df_dx_norm')):
+        if torch.isnan(tensor).any() or torch.isinf(tensor).any():
+            print(f"Warning: NaN or Inf detected in {name}")
+
+    return (p * delta_out * f / (df_dx_norm + cfg.div_eps)).sum()

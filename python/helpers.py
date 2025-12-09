@@ -9,7 +9,6 @@ from .utils.segments import (
 from .utils.boundary import (
     BoundaryLossConfig,
     boundary_loss,
-    edge_loss_slang,
 )
 from .utils.finite_diff import (
     compute_and_plot_fwd_grad,
@@ -33,7 +32,6 @@ __all__ = [
     'snap_segment_to_discontinuity',
     'BoundaryLossConfig',
     'boundary_loss',
-    'edge_loss_slang',
     'compute_and_plot_fwd_grad',
     'efficient_finite_diff_grad',
     'plot_fwd_grad_ours_and_fd',
