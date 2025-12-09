@@ -1,10 +1,9 @@
 import torch
 import matplotlib.pyplot as plt
 
+from .device import DEVICE
 from .segments import points_on_grid
 from .boundary import edge_loss_slang
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def efficient_finite_diff_grad(integrand, param_idx, batch_size=1024*128, fd_grid_size=256, fd_aa_size=40, fd_eps=1e-3, out_dim=3):
     """
     Compute finite difference gradient for a specific parameter index with batched processing.

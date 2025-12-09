@@ -163,9 +163,6 @@ def edge_loss_slang(
         if torch.isnan(tensor).any() or torch.isinf(tensor).any():
             print(f"Warning: NaN or Inf detected in {name}")
 
-    if integrand.__class__.__name__ == 'CheckerboardIntegrandSlang':
-        return (p * delta_out * integrand.p[0] / (df_dx_norm + DIV_EPS)).sum()
-
     return (p * delta_out * f / (df_dx_norm + DIV_EPS)).sum()
 
 
