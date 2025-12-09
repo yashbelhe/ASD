@@ -13,7 +13,7 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid as grid_points  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid as grid_points  # noqa: E402
 from python.integrands import TriangleIntegrandSlang  # noqa: E402
 
 
@@ -36,7 +36,7 @@ def main():
     eps = 5e-4
 
     integrand.zero_grad()
-    loss = boundary_loss_slang(integrand, cfg)
+    loss = boundary_loss(integrand, cfg)
     loss.backward()
     boundary_grads = integrand.p.grad.detach().cpu().numpy()
 

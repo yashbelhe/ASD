@@ -11,7 +11,7 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import MultiCirclesIntegrandSlang  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss  # noqa: E402
 
 
 def main():
@@ -34,16 +34,16 @@ def main():
     cfg = BoundaryLossConfig(grid_size=512, kde_k=11, num_subdivision=20)
 
     integrand.zero_grad()
-    loss = boundary_loss_slang(integrand, cfg)
+    loss = boundary_loss(integrand, cfg)
     loss.backward()
     auto_grad = integrand.p.grad[param_idx].item()
 
     with torch.no_grad():
         base = integrand.p[param_idx].item()
         integrand.p[param_idx] = base + eps
-        loss_plus = boundary_loss_slang(integrand, cfg).item()
+        loss_plus = boundary_loss(integrand, cfg).item()
         integrand.p[param_idx] = base - eps
-        loss_minus = boundary_loss_slang(integrand, cfg).item()
+        loss_minus = boundary_loss(integrand, cfg).item()
         integrand.p[param_idx] = base
 
     fd_grad = (loss_plus - loss_minus) / (2.0 * eps)

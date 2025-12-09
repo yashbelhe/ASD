@@ -16,7 +16,7 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid  # noqa: E402
 from python.integrands import (  # noqa: E402
     BinaryThresholdIntegrandSlang,
     SweptBrushIntegrandSlang,
@@ -241,7 +241,7 @@ def train_integrand(
             train_img = reshape_and_average(preds, args.train_resolution, args.aa_train)
             area_loss = (train_img - target_img_train).square().mean()
 
-        boundary = boundary_loss_slang(integrand, boundary_cfg)
+        boundary = boundary_loss(integrand, boundary_cfg)
         total_loss = boundary + area_loss
         total_loss.backward()
         optimizer.step()

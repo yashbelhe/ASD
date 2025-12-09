@@ -8,7 +8,7 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid as grid_points  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid as grid_points  # noqa: E402
 from python.integrands import VoronoiGridIntegrandSlang  # noqa: E402
 
 
@@ -20,7 +20,7 @@ def area_loss_tensor(integrand, pts):
 def total_loss_value(integrand, pts, cfg):
     with torch.no_grad():
         area = integrand(pts).sum(dim=-1).mean().item()
-        boundary = boundary_loss_slang(integrand, cfg).item()
+        boundary = boundary_loss(integrand, cfg).item()
     return area + boundary
 
 
@@ -38,8 +38,8 @@ def main():
 
     integrand.zero_grad()
     area_loss = area_loss_tensor(integrand, sample_points)
-    boundary_loss = boundary_loss_slang(integrand, cfg)
-    total_loss = area_loss + boundary_loss
+    boundary_term = boundary_loss(integrand, cfg)
+    total_loss = area_loss + boundary_term
     total_loss.backward()
     total_grads = integrand.p.grad.detach().cpu().numpy()
 

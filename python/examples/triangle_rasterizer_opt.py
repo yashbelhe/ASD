@@ -18,7 +18,7 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import TriangleRasterizerIntegrandSlang  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid  # noqa: E402
 
 
 def resolve_path(path_str):
@@ -242,7 +242,7 @@ def main():
         target_img_gpu = target_imgs[view_idx].to(device)
         area_loss = (preds - target_img_gpu).square().mean()
         cfg.mode_aux_data = target_img_gpu.detach()
-        edge_loss = boundary_loss_slang(integrand, cfg)
+        edge_loss = boundary_loss(integrand, cfg)
         cfg.mode_aux_data = None
         del target_img_gpu
         total_loss = area_loss + edge_loss

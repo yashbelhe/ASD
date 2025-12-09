@@ -20,7 +20,7 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid  # noqa: E402
 from python.integrands import ImplicitRaymarchingIntegrandSlang  # noqa: E402
 
 
@@ -189,8 +189,8 @@ def main():
         area_loss = (preds - target_img).square().mean()
 
         boundary_cfg.mode_aux_data = target_img.detach()
-        boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = area_loss + boundary_loss
+        boundary_term = boundary_loss(integrand, boundary_cfg)
+        total_loss = area_loss + boundary_term
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()

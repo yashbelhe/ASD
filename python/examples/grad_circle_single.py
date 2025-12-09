@@ -15,7 +15,7 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import CirclesIntegrandSlang  # noqa: E402
-from python.helpers import boundary_loss_slang, BoundaryLossConfig, points_on_grid as grid_points  # noqa: E402
+from python.helpers import boundary_loss, BoundaryLossConfig, points_on_grid as grid_points  # noqa: E402
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
 
     # Run boundary loss and backprop using a config object
     cfg = BoundaryLossConfig(grid_size=2**13, kde_k=13, num_subdivision=20)
-    b_loss = boundary_loss_slang(integrand, cfg)
+    b_loss = boundary_loss(integrand, cfg)
     b_loss.backward()
     got = integrand.p.grad[2].item()
     ref = -2.0 * math.pi * r  # analytic boundary derivative for area outside a circle

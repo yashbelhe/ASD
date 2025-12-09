@@ -24,7 +24,7 @@ from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import VoronoiSimpleIntegrandSlang  # noqa: E402
 from python.helpers import (  # noqa: E402
     BoundaryLossConfig,
-    boundary_loss_slang,
+    boundary_loss,
     points_on_grid,
 )
 
@@ -184,7 +184,7 @@ def main():
         else:
             area_loss = (preds - target_img).square().mean()
 
-        edge_loss = boundary_loss_slang(integrand, boundary_cfg)
+        edge_loss = boundary_loss(integrand, boundary_cfg)
         total_loss = area_loss + edge_loss
         total_loss.backward()
 

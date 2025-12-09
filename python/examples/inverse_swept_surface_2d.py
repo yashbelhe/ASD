@@ -16,7 +16,7 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid  # noqa: E402
 from python.integrands import (  # noqa: E402
     SweptBilinearIntegrandSlang,
     SweptBrushIntegrandSlang,
@@ -176,14 +176,14 @@ def train_integrand(integrand, gt_fn, args, device, boundary_cfg, run_dir):
         target = gt_fn(samples)
 
         area_loss = (preds - target).square().mean()
-        boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = boundary_loss
+        boundary_term = boundary_loss(integrand, boundary_cfg)
+        total_loss = boundary_term
         total_loss.backward()
         optimizer.step()
         if scheduler is not None:
             scheduler.step()
 
-        history.append((area_loss.item(), boundary_loss.item()))
+        history.append((area_loss.item(), boundary_term.item()))
         if args.log_every and step % args.log_every == 0:
             print(f"Iter {step:04d} | loss={total_loss.item():.6f}")
 

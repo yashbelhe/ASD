@@ -14,7 +14,7 @@ sys.path.insert(0, str(repo_root))
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.helpers import (  # noqa: E402
     BoundaryLossConfig,
-    boundary_loss_slang,
+    boundary_loss,
     points_on_grid,
 )
 from python.integrands import (  # noqa: E402
@@ -303,7 +303,7 @@ def main():
             area_loss = (preds - target_img).square().mean()
 
         cfg.mode_aux_data = target_img.detach()
-        edge_loss = boundary_loss_slang(ellipsoids, cfg)
+        edge_loss = boundary_loss(ellipsoids, cfg)
         total = area_loss + edge_loss
         total.backward()
 

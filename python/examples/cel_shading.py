@@ -20,7 +20,7 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import CelShadingIntegrandSlang  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid  # noqa: E402
 
 
 def render_image(integrand, resolution, aa_factor, jitter, device):
@@ -77,8 +77,8 @@ def train(integrand, args, device, boundary_cfg, target_img, results_dir):
         ).mean(dim=(1, 3))
 
         area_loss = (preds - target_img).square().mean()
-        boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = area_loss + boundary_loss
+        boundary_term = boundary_loss(integrand, boundary_cfg)
+        total_loss = area_loss + boundary_term
         total_loss.backward()
         optimizer.step()
 

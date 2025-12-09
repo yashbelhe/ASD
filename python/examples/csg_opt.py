@@ -14,7 +14,7 @@ from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import BaseIntegrandSlang  # noqa: E402
 from python.helpers import (  # noqa: E402
     points_on_grid,
-    boundary_loss_slang,
+    boundary_loss,
     BoundaryLossConfig,
 )
 import slangtorch  # noqa: E402
@@ -135,7 +135,7 @@ def main():
         out_gt_batch = test_fn(area_samples)
         loss = (out - out_gt_batch).square().mean()
 
-        edge_loss = boundary_loss_slang(integrand, boundary_cfg)
+        edge_loss = boundary_loss(integrand, boundary_cfg)
         total_loss = edge_loss  # or loss + edge_loss if area term desired
         total_loss.backward()
 

@@ -22,7 +22,7 @@ from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.libigl_inside_outside import MeshInsideOutsideTest  # noqa: E402
 from python.helpers import (  # noqa: E402
     BoundaryLossConfig,
-    boundary_loss_slang,
+    boundary_loss,
     points_on_grid,
 )
 from python.integrands import TrilinearThresholdIntegrandSlang  # noqa: E402
@@ -228,8 +228,8 @@ def main():
         preds = integrand(pts)
         target_vals = target_fn(pts)
         area_loss = (preds - target_vals).square().mean()
-        boundary_loss = boundary_loss_slang(integrand, boundary_cfg)
-        total_loss = area_loss + boundary_loss
+        boundary_term = boundary_loss(integrand, boundary_cfg)
+        total_loss = area_loss + boundary_term
         total_loss.backward()
         optimizer.step()
 

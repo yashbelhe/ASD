@@ -14,7 +14,7 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss_slang, points_on_grid as grid_points  # noqa: E402
+from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid as grid_points  # noqa: E402
 from python.integrands import HalfPlaneIntegrandSlang  # noqa: E402
 
 
@@ -37,7 +37,7 @@ def main():
     eps = 1e-3
 
     integrand.zero_grad()
-    loss = boundary_loss_slang(integrand, cfg)
+    loss = boundary_loss(integrand, cfg)
     loss.backward()
     boundary_grad = integrand.p.grad[0].item()
 

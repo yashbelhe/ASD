@@ -24,7 +24,7 @@ from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import VectorGraphicsRGBPaddedAccelIntegrandSlang  # noqa: E402
 from python.helpers import (  # noqa: E402
     BoundaryLossConfig,
-    boundary_loss_slang,
+    boundary_loss,
     points_on_grid,
 )
 
@@ -185,7 +185,7 @@ def main():
         else:
             area_loss = (preds - target).square().mean()
 
-        edge_loss = boundary_loss_slang(integrand, cfg)
+        edge_loss = boundary_loss(integrand, cfg)
         total = area_loss + edge_loss
         total.backward()
 
