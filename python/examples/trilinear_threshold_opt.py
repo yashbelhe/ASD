@@ -19,7 +19,7 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from libigl_inside_outside import MeshInsideOutsideTest  # noqa: E402
+from python.libigl_inside_outside import MeshInsideOutsideTest  # noqa: E402
 from python.helpers import (  # noqa: E402
     BoundaryLossConfig,
     boundary_loss_slang,
