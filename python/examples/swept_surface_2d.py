@@ -343,7 +343,6 @@ def main():
         kde_k=args.boundary_kde_k,
         div_eps=args.boundary_div_eps,
         plot_resolution=args.boundary_plot_resolution,
-        lipschitz_bounds=1e-6,
         mode="L2_test_fn" if args.use_test_fn else "L2_img",
         mode_aux_data=gt_fn if args.use_test_fn else target_img_train,
         df_dx_mode="backward",

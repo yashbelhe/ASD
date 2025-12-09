@@ -172,7 +172,6 @@ def main():
         kde_k=args.boundary_kde_k,
         div_eps=args.boundary_div_eps,
         plot_resolution=args.boundary_plot_resolution,
-        lipschitz_bounds=1e-6,
         mode="L2_img",
         mode_aux_data=target_img.detach(),
         df_dx_mode="backward",

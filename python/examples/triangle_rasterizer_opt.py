@@ -140,7 +140,6 @@ def parse_args():
     parser.add_argument("--boundary-kde-k", type=int, default=14)
     parser.add_argument("--boundary-div-eps", type=float, default=1e-15)
     parser.add_argument("--boundary-plot-resolution", type=int, default=1000)
-    parser.add_argument("--boundary-lipschitz", type=float, default=1e-6)
     parser.add_argument("--boundary-mode", type=str, default="L1_img")
     parser.add_argument("--results-root", type=str, default="results/triangle_rasterizer_opt")
     parser.add_argument("--results-name", type=str, default=None)
@@ -220,7 +219,6 @@ def main():
         kde_k=args.boundary_kde_k,
         div_eps=args.boundary_div_eps,
         plot_resolution=args.boundary_plot_resolution,
-        lipschitz_bounds=[args.boundary_lipschitz] * args.boundary_num_subdivision,
         mode=args.boundary_mode,
         df_dx_mode="backward",
     )

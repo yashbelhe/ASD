@@ -169,7 +169,6 @@ def main():
     boundary_cfg = BoundaryLossConfig(
         grid_size=args.edge_sample_res,
         num_subdivision=args.edge_num_subdivision,
-        lipschitz_bounds=1e-6,
         div_eps=args.edge_div_eps,
         plot_resolution=args.edge_plot_resolution,
         kde_k=args.edge_kde_k,

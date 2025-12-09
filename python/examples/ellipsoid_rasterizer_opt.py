@@ -182,7 +182,6 @@ def parse_args():
     parser.add_argument("--div-eps", type=float, default=1e-15)
     parser.add_argument("--plot-resolution", type=int, default=1000)
     parser.add_argument("--df-dx-mode", choices=["forward", "backward"], default="backward")
-    parser.add_argument("--lipschitz", type=float, default=1e-6)
     parser.add_argument("--center-lr", type=float, default=5e-3)
     parser.add_argument("--center-lr-final", type=float, default=5e-5)
     parser.add_argument("--scale-lr", type=float, default=1e-7)
@@ -277,7 +276,6 @@ def main():
     cfg = BoundaryLossConfig(
         grid_size=args.edge_grid,
         num_subdivision=args.num_subdivision,
-        lipschitz_bounds=[args.lipschitz] * args.num_subdivision,
         div_eps=args.div_eps,
         plot_resolution=args.plot_resolution,
         kde_k=args.kde_k,

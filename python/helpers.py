@@ -244,13 +244,13 @@ def get_segments_on_grid(GRID_SIZE, dim=2):
     return segments_0
 
 
-def snap_segment_to_discontinuity(segments, target_fn, LIPSCHITZ_BOUNDS, NUM_SUBDIVISION, max_segments=10**7):
+def snap_segment_to_discontinuity(segments, target_fn, NUM_SUBDIVISION, max_segments=10**7):
     num_points = 0
     for i in range(NUM_SUBDIVISION):
         num_points += segments.shape[0] * 2
         # print(f"[{i}] Num active segments: {len(segments)}")
         seg_grad_norms = segment_grad_norm(segments, target_fn)
-        segments_mask = seg_grad_norms > LIPSCHITZ_BOUNDS[i]
+        segments_mask = seg_grad_norms > 1e-6
         segments = segments[segments_mask]
         midpoints = segments.mean(axis=1)
         if i == NUM_SUBDIVISION-1:
@@ -543,11 +543,9 @@ class PathGuidingDataStructure2D():
     
 
 
-def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_grad=(False, -1), NUM_SUBDIVISION=20, LIPSCHITZ_BOUNDS=1e-6, DIV_EPS=1e-15, PLOT_RESOLUTION=1000, KDE_K=9, mode='direct', mode_aux_data=None, path_guiding_num_samples=0, path_guiding_ds=None, df_dx_mode='forward', mask_fn=None, custom_segments=None, custom_x=None):
+def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_grad=(False, -1), NUM_SUBDIVISION=20, DIV_EPS=1e-15, PLOT_RESOLUTION=1000, KDE_K=9, mode='direct', mode_aux_data=None, path_guiding_num_samples=0, path_guiding_ds=None, df_dx_mode='forward', mask_fn=None, custom_segments=None, custom_x=None):
     assert mode in ['direct', 'L2_img', 'L2_test_fn', 'L1_img', 'L1_test_fn']
 
-    if type(LIPSCHITZ_BOUNDS) == float:
-        LIPSCHITZ_BOUNDS = [LIPSCHITZ_BOUNDS] * NUM_SUBDIVISION
     if custom_x is None:
         # Given two version of the integrand (piecewise continuous and constant),
         # first detect discontinuities and then compute edge gradient
@@ -564,7 +562,7 @@ def edge_loss_slang(integrand, dim=2, GRID_SIZE=2000, plot_segments=False, fwd_g
         integrand_pw_continuous = lambda x: integrand(x, ret_const=False)
 
         # Snap segments to discontinuities
-        segments = snap_segment_to_discontinuity(segments, integrand_pw_constant, LIPSCHITZ_BOUNDS, NUM_SUBDIVISION) # [N', 2, ID]
+        segments = snap_segment_to_discontinuity(segments, integrand_pw_constant, NUM_SUBDIVISION) # [N', 2, ID]
         x = segments.mean(axis=1) # [N, ID]
     else:
         x = custom_x
@@ -753,7 +751,6 @@ class BoundaryLossConfig:
     plot_segments: bool = False
     fwd_grad: tuple = (False, -1)
     num_subdivision: int = 20
-    lipschitz_bounds: float = 1e-6
     div_eps: float = 1e-15
     plot_resolution: int = 1000
     kde_k: int = 9
@@ -776,7 +773,6 @@ def boundary_loss(integrand, cfg: BoundaryLossConfig):
         plot_segments=cfg.plot_segments,
         fwd_grad=cfg.fwd_grad,
         NUM_SUBDIVISION=cfg.num_subdivision,
-        LIPSCHITZ_BOUNDS=cfg.lipschitz_bounds,
         DIV_EPS=cfg.div_eps,
         PLOT_RESOLUTION=cfg.plot_resolution,
         KDE_K=cfg.kde_k,
