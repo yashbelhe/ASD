@@ -5,20 +5,33 @@ from dataclasses import dataclass
 from .segments import points_on_grid, get_segments_on_grid, snap_segment_to_discontinuity
 from .kde import KDEKeOpsKNN
 
-def _select_segments(grid_size, dim, custom_segments):
+def _infer_integrand_device(integrand):
+    for param in integrand.parameters():
+        return param.device
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _to_device(value, device):
+    if isinstance(value, torch.Tensor):
+        return value.to(device)
+    return torch.as_tensor(value, device=device)
+
+
+def _select_segments(grid_size, dim, custom_segments, device):
     if custom_segments is not None:
         assert grid_size is None
-        segments = custom_segments
+        segments = _to_device(custom_segments, device)
     else:
-        segments = get_segments_on_grid(grid_size, dim=dim)
+        segments = get_segments_on_grid(grid_size, dim=dim, device=device)
     return segments
 
 
 def _sample_edge_points(dim, grid_size, num_subdivision, custom_segments, custom_x, integrand):
+    device = _infer_integrand_device(integrand)
     if custom_x is not None:
-        x = custom_x
+        x = _to_device(custom_x, device)
     else:
-        segments = _select_segments(grid_size, dim, custom_segments)
+        segments = _select_segments(grid_size, dim, custom_segments, device)
         integrand_pw_constant = lambda pts: integrand(pts, ret_const=True)
         segments = snap_segment_to_discontinuity(segments, integrand_pw_constant, num_subdivision)
         x = segments.mean(axis=1)

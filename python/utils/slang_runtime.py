@@ -14,10 +14,10 @@ def launch_1d(x, LEN):
 
 def SlangShaderForwardGrad(x, d_x, p, d_p, impl_idx, force_sign, shader, ret_const, ret_impl):
     if impl_idx is None:
-        impl_idx = torch.zeros(x.shape[0], dtype=torch.int32) - 1
+        impl_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device) - 1
     r = torch.full_like(x[:,0], -1.0, requires_grad=True)
     impl_fn = torch.full_like(x[:,0], 1000.0, requires_grad=True)
-    out_idx = torch.zeros(x.shape[0], dtype=torch.int32)
+    out_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device)
     d_r = torch.zeros_like(r)
     d_impl_fn = torch.zeros_like(impl_fn)
     
@@ -31,10 +31,10 @@ def SlangShaderForwardGrad(x, d_x, p, d_p, impl_idx, force_sign, shader, ret_con
   
 def SlangShaderForwardGradRGB(x, d_x, p, d_p, impl_idx, force_sign, shader, ret_const, ret_impl):
     if impl_idx is None:
-        impl_idx = torch.zeros(x.shape[0], dtype=torch.int32) - 1
+        impl_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device) - 1
     r = torch.full_like(x[:,0].unsqueeze(-1).repeat(1,3), -1.0, requires_grad=True)
     impl_fn = torch.full_like(x[:,0], 1000.0, requires_grad=True)
-    out_idx = torch.zeros(x.shape[0], dtype=torch.int32)
+    out_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device)
     d_r = torch.zeros_like(r)
     d_impl_fn = torch.zeros_like(impl_fn)
     
@@ -52,11 +52,11 @@ class SlangShader(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, p, impl_idx, force_sign, shader, ret_const, ret_impl):
         if impl_idx is None:
-            impl_idx = torch.zeros(x.shape[0], dtype=torch.int32) - 1
+            impl_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device) - 1
         r = torch.full_like(x[:,0], -1.0, requires_grad=True)
         impl_fn = torch.full_like(x[:,0], 1000.0, requires_grad=True)
         # r = torch.full_like(x[:,0], torch.inf, requires_grad=True)
-        out_idx = torch.zeros(x.shape[0], dtype=torch.int32)
+        out_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device)
 
         launch_1d(shader.run(
             x=x, p=p, r=r, impl_fn=impl_fn, impl_idx=impl_idx, out_idx=out_idx, force_sign=force_sign,
@@ -106,11 +106,11 @@ class SlangShaderRGB(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, p, impl_idx, force_sign, shader, ret_const, ret_impl):
         if impl_idx is None:
-            impl_idx = torch.zeros(x.shape[0], dtype=torch.int32) - 1
+            impl_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device) - 1
         r = torch.full_like(x[:,0].unsqueeze(-1).repeat(1,3), -1.0, requires_grad=True)
         impl_fn = torch.full_like(x[:,0], 1000.0, requires_grad=True)
         # r = torch.full_like(x[:,0], torch.inf, requires_grad=True)
-        out_idx = torch.zeros(x.shape[0], dtype=torch.int32)
+        out_idx = torch.zeros(x.shape[0], dtype=torch.int32, device=x.device)
 
         launch_1d(shader.run(
             x=x, p=p, r=r, impl_fn=impl_fn, impl_idx=impl_idx, out_idx=out_idx, force_sign=force_sign,
@@ -155,5 +155,4 @@ class SlangShaderRGB(torch.autograd.Function):
         ), LEN=x.shape[0])
 
         return d_x, d_p, None, None, None, None, None
-
 

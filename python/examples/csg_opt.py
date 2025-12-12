@@ -17,9 +17,9 @@ from python.utils.segments import points_on_grid  # noqa: E402
 import slangtorch  # noqa: E402
 
 
-def create_3d_slice_samples(resolution, aa_factor, plane_value, constant_axis=2):
+def create_3d_slice_samples(resolution, aa_factor, plane_value, constant_axis=2, device=None):
     """Create a 3D slice of points where one axis is held constant."""
-    area_samples = points_on_grid(resolution * aa_factor, jitter=True, dim=2)
+    area_samples = points_on_grid(resolution * aa_factor, jitter=True, dim=2, device=device)
     if constant_axis == 0:
         area_samples = torch.cat([torch.ones_like(area_samples[:, :1]) * plane_value, area_samples], dim=1)
         axis_name = "x"
@@ -59,7 +59,12 @@ def plot_comparison(out_gt, out_perturbed, save_path=None, middle_title="Perturb
 class CSGIntegrandSlang(BaseIntegrandSlang):
     def __init__(self):
         super().__init__()
-        self.shader = slangtorch.loadModule("slang/__gen__csg.slang")
+        shader_src = repo_root / "slang" / "csg.slang"
+        shader_dst = repo_root / "slang" / "__gen__csg.slang"
+        if not shader_dst.exists():
+            compile_if_needed(shader_src, shader_dst)
+
+        self.shader = slangtorch.loadModule(str(shader_dst))
 
         params = []
         params.append(1.0)  # sphere_radius
@@ -79,6 +84,8 @@ class CSGIntegrandSlang(BaseIntegrandSlang):
 def main():
     # Use pre-generated shader; do not re-run transformer for CSG until preproc handling is fixed
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Config
     USE_TEST_FN = True
     EDGE_LOSS_MODE = "L2_test_fn" if USE_TEST_FN else "L2_img"
@@ -92,8 +99,8 @@ def main():
     KDE_K = 14
 
     # Integrands
-    test_fn = CSGIntegrandSlang()
-    integrand = CSGIntegrandSlang()
+    test_fn = CSGIntegrandSlang().to(device)
+    integrand = CSGIntegrandSlang().to(device)
     torch.manual_seed(0)
     with torch.no_grad():
         integrand.p += torch.randn_like(integrand.p) * 0.07
@@ -101,7 +108,7 @@ def main():
     # Initial visualization on a slice
     plane_value = 0.25
     constant_axis = 2
-    area_samples, _ = create_3d_slice_samples(GT_RESOLUTION, AA_FACTOR_GT, plane_value, constant_axis)
+    area_samples, _ = create_3d_slice_samples(GT_RESOLUTION, AA_FACTOR_GT, plane_value, constant_axis, device=device)
     out_gt = test_fn(area_samples).reshape(GT_RESOLUTION, AA_FACTOR_GT, GT_RESOLUTION, AA_FACTOR_GT).mean(dim=(1, 3))
     out_init = integrand(area_samples).reshape(GT_RESOLUTION, AA_FACTOR_GT, GT_RESOLUTION, AA_FACTOR_GT).mean(dim=(1, 3))
 
@@ -127,7 +134,7 @@ def main():
         torch.save(integrand.state_dict(), results_dir / f"step_{i}.pt")
         optimizer.zero_grad()
 
-        area_samples = points_on_grid(AREA_SAMPLE_RES * AA_FACTOR_GT, jitter=True, dim=3)
+        area_samples = points_on_grid(AREA_SAMPLE_RES * AA_FACTOR_GT, jitter=True, dim=3, device=device)
         out = integrand(area_samples)
         out_gt_batch = test_fn(area_samples)
         loss = (out - out_gt_batch).square().mean()
@@ -143,7 +150,7 @@ def main():
             print(f"Iter {i}: loss={loss.item():.6f}, edge={edge_loss.item():.6f}")
 
     # Final visualization
-    area_samples, _ = create_3d_slice_samples(GT_RESOLUTION, AA_FACTOR_GT, plane_value, constant_axis)
+    area_samples, _ = create_3d_slice_samples(GT_RESOLUTION, AA_FACTOR_GT, plane_value, constant_axis, device=device)
     out_final = integrand(area_samples).reshape(GT_RESOLUTION, AA_FACTOR_GT, GT_RESOLUTION, AA_FACTOR_GT).mean(dim=(1, 3))
     plot_comparison(out_gt, out_final, save_path=results_dir / "final.png", middle_title="Final Image")
     torch.save(integrand.state_dict(), results_dir / "final.pt")

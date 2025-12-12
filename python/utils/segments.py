@@ -10,9 +10,9 @@ def points_on_grid(grid_size, jitter=False, dim=2, device=None):
     return torch.stack([grid.flatten() for grid in meshgrids], dim=1)
 
 
-def get_segments_on_grid(grid_size, dim=2):
+def get_segments_on_grid(grid_size, dim=2, device=None):
     """Sample random segments anchored on a grid and random directions."""
-    grid = points_on_grid(grid_size, jitter=True, dim=dim)
+    grid = points_on_grid(grid_size, jitter=True, dim=dim, device=device)
 
     if dim == 2:
         theta = torch.rand_like(grid[:, 0]) * torch.pi * 2
