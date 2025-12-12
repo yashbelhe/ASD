@@ -20,11 +20,8 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.libigl_inside_outside import MeshInsideOutsideTest  # noqa: E402
-from python.helpers import (  # noqa: E402
-    BoundaryLossConfig,
-    boundary_loss,
-    points_on_grid,
-)
+from python.utils.boundary import BoundaryLossConfig, boundary_loss  # noqa: E402
+from python.utils.segments import points_on_grid  # noqa: E402
 from python.integrands import TrilinearThresholdIntegrandSlang  # noqa: E402
 
 

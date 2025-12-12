@@ -11,7 +11,7 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import MultiCirclesIntegrandSlang  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss  # noqa: E402
+from python.utils.boundary import BoundaryLossConfig, boundary_loss  # noqa: E402
 
 
 def main():

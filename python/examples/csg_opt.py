@@ -12,11 +12,8 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import BaseIntegrandSlang  # noqa: E402
-from python.helpers import (  # noqa: E402
-    points_on_grid,
-    boundary_loss,
-    BoundaryLossConfig,
-)
+from python.utils.boundary import BoundaryLossConfig, boundary_loss  # noqa: E402
+from python.utils.segments import points_on_grid  # noqa: E402
 import slangtorch  # noqa: E402
 
 

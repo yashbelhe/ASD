@@ -163,7 +163,8 @@ def boundary_loss(integrand, cfg=None, **kwargs):
         )
         if kwargs:
             raise TypeError(f"Unexpected keyword arguments: {list(kwargs.keys())}")
-    
+    cfg = config
+
     assert cfg.mode in ['direct', 'L2_img', 'L2_test_fn', 'L1_img', 'L1_test_fn']
 
     x = _sample_edge_points(

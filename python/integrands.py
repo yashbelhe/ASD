@@ -7,7 +7,7 @@ import slangtorch
 from largesteps.geometry import compute_matrix
 from largesteps.parameterize import from_differential, to_differential
 import plyfile
-from python.helpers import (
+from python.utils.slang_runtime import (
     SlangShader,
     SlangShaderForwardGrad,
     SlangShaderRGB,

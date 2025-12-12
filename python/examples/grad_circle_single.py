@@ -15,7 +15,8 @@ sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
 from python.integrands import CirclesIntegrandSlang  # noqa: E402
-from python.helpers import boundary_loss, BoundaryLossConfig, points_on_grid as grid_points  # noqa: E402
+from python.utils.boundary import BoundaryLossConfig, boundary_loss  # noqa: E402
+from python.utils.segments import points_on_grid as grid_points  # noqa: E402
 
 
 def main():

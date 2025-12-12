@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from .device import DEVICE
 from .segments import points_on_grid
-from .boundary import boundary_loss
+from .boundary import BoundaryLossConfig, boundary_loss
 def efficient_finite_diff_grad(integrand, param_idx, batch_size=1024*128, fd_grid_size=256, fd_aa_size=40, fd_eps=1e-3, out_dim=3):
     """
     Compute finite difference gradient for a specific parameter index with batched processing.
@@ -155,8 +155,13 @@ def plot_fwd_grad_ours_and_fd(dout_dp_ours, x_ours, fd_grad_img, vmax=0.01,grid_
 def compute_and_plot_fwd_grad(integrand, p_idx, plot_error=False, FD_GRID_SIZE=256, FD_AA_SIZE=16, FD_EPS=1e-3, OUR_GRID_SIZE=5000, integrand_class_name=None, show_plot=True):
     fd_grad_img = efficient_finite_diff_grad(integrand, param_idx=p_idx, fd_grid_size=FD_GRID_SIZE, fd_aa_size=FD_AA_SIZE, fd_eps=FD_EPS, out_dim=integrand.out_dim)
 
-    # our_grad_edge, x_edge = boundary_loss(integrand, GRID_SIZE=OUR_GRID_SIZE, plot_segments=True, fwd_grad=(True, p_idx), df_dx_mode='forward')
-    our_grad_edge, x_edge = boundary_loss(integrand, GRID_SIZE=OUR_GRID_SIZE, plot_segments=False, fwd_grad=(True, p_idx), df_dx_mode='forward')
+    cfg = BoundaryLossConfig(
+        grid_size=OUR_GRID_SIZE,
+        plot_segments=False,
+        fwd_grad=(True, p_idx),
+        df_dx_mode='forward',
+    )
+    our_grad_edge, x_edge = boundary_loss(integrand, cfg)
     vmax=None
 
     # print(our_grad_edge.min(), our_grad_edge.max(), our_grad_edge.std())

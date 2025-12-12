@@ -16,7 +16,8 @@ repo_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo_root))
 
 from compiler.compile_shader import compile_if_needed  # noqa: E402
-from python.helpers import BoundaryLossConfig, boundary_loss, points_on_grid  # noqa: E402
+from python.utils.boundary import BoundaryLossConfig, boundary_loss  # noqa: E402
+from python.utils.segments import points_on_grid  # noqa: E402
 from python.integrands import (  # noqa: E402
     SweptBilinearIntegrandSlang,
     SweptBrushIntegrandSlang,
