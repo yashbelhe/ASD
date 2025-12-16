@@ -64,9 +64,9 @@ def save_tensor_image(path, tensor):
 
 def resolve_mesh_path(identifier: str) -> Path:
     presets = {
-        "bunny": repo_root.parent / "data" / "scenes" / "bunny" / "meshes" / "target.ply",
-        "dragon": repo_root.parent / "data" / "scenes" / "dragon" / "meshes" / "target.ply",
-        "suzanne": repo_root.parent / "data" / "scenes" / "suzanne" / "meshes" / "target.ply",
+        "bunny": repo_root / "data" / "scenes" / "bunny" / "meshes" / "target.ply",
+        "dragon": repo_root / "data" / "scenes" / "dragon" / "meshes" / "target.ply",
+        "suzanne": repo_root / "data" / "scenes" / "suzanne" / "meshes" / "target.ply",
     }
     candidate = Path(identifier)
     if candidate.exists():

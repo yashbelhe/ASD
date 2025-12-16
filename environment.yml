@@ -1,0 +1,22 @@
+name: asd
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy
+  - matplotlib
+  - pillow
+  - imageio
+  - plyfile
+  - pytorch=2.3
+  - torchvision=0.18
+  - torchaudio=2.3
+  - pip
+  - pip:
+      - slangtorch
+      - largesteps
+      - pykeops
+      - tree_sitter
+      - tree_sitter_cpp

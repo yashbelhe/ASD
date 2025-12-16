@@ -65,7 +65,6 @@ def load_target_image(name: str, resolution: int, device: torch.device) -> torch
         filename = name_to_file.get(name.lower(), name)
         candidates = [
             repo_root / "data" / filename,
-            repo_root.parent / "data" / filename,
         ]
         for cand in candidates:
             if cand.exists():

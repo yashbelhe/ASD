@@ -24,10 +24,10 @@ from python.utils.segments import points_on_grid  # noqa: E402
 
 def load_target_image(name: str, resolution: int, device: torch.device) -> torch.Tensor:
     presets = {
-        "diamond": repo_root.parent / "data" / "diamond_input.png",
-        "starry": repo_root.parent / "data" / "starry_wikimedia.jpg",
-        "scream": repo_root.parent / "data" / "scream_wikimedia.jpg",
-        "fallingwater": repo_root.parent / "data" / "fallingwater.jpg",
+        "diamond": repo_root / "data" / "diamond_input.png",
+        "starry": repo_root / "data" / "starry_wikimedia.jpg",
+        "scream": repo_root / "data" / "scream_wikimedia.jpg",
+        "fallingwater": repo_root / "data" / "fallingwater.jpg",
     }
     path = Path(name)
     if not path.exists():
