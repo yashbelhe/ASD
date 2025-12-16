@@ -391,6 +391,25 @@ def _build_acceleration_structure(
     return grid_tensor.view(grid_size, grid_size, max_elements_per_cell + 1).to(torch.float32)
 
 
+def _create_circle_constant_block(cx, cy, radius, color, opacity):
+    """Return a length-20 parameter block for a circle primitive."""
+    block = [0.0] * 20
+    block[0] = 3.0  # circle primitive type
+    block[1] = cx
+    block[2] = cy
+    block[3] = radius
+    block[4] = 0.0
+    block[5] = 0.0
+    block[6] = 0.0
+    block[7] = radius  # stored stroke width slot (unused in shader)
+    block[8] = 0.0  # constant fill type
+    block[9] = color[0]
+    block[10] = color[1]
+    block[11] = color[2]
+    block[12] = opacity
+    return block
+
+
 class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
     """Minimal vector-graphics integrand with a grid acceleration structure."""
 
@@ -402,28 +421,43 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
         background_color=(0.0, 0.0, 0.0),
         primitive_type="line",
         seed=42,
+        num_primitives=None,
     ):
         super().__init__()
         primitive_type = primitive_type.lower()
-        if primitive_type not in {"line", "bezier"}:
-            raise ValueError("primitive_type must be either 'line' or 'bezier'.")
+        supported = {"line", "bezier", "circle"}
+        if primitive_type not in supported:
+            raise ValueError(f"primitive_type must be one of {supported}.")
         self.shader = slangtorch.loadModule("slang/__gen__vector_graphics_rgb_padded_accel.slang")
         self.grid_size = grid_size
         self.max_elements_per_cell = max_elements_per_cell
         self.background_color = torch.tensor(background_color, dtype=torch.float32)
         self.primitive_type = primitive_type
         self._accel_setup_kernel = slangtorch.loadModule("slang/accel_structure_setup.slang")
+        self._is_circle = primitive_type == "circle"
+
+        if num_primitives is not None and num_primitives <= 0:
+            raise ValueError("num_primitives must be positive when specified.")
 
         torch.manual_seed(seed if seed is not None else 42)
         params = []
-        cell_width = 1.0 / n
-        for i in range(n):
-            for j in range(n):
+        if num_primitives is None:
+            target_primitives = n * n
+            grid_dim = n
+        else:
+            target_primitives = num_primitives
+            grid_dim = max(1, math.ceil(math.sqrt(num_primitives)))
+        cell_width = 1.0 / grid_dim
+        count = 0
+        for i in range(grid_dim):
+            for j in range(grid_dim):
+                if count >= target_primitives:
+                    break
                 color = torch.rand(3).tolist()
                 opacity = 1.0
                 if self.primitive_type == "line":
-                    cx = (i + 0.5) / n + (torch.rand(1).item() - 0.5) * 0.2 * cell_width
-                    cy = (j + 0.5) / n + (torch.rand(1).item() - 0.5) * 0.2 * cell_width
+                    cx = (i + 0.5) / grid_dim + (torch.rand(1).item() - 0.5) * 0.2 * cell_width
+                    cy = (j + 0.5) / grid_dim + (torch.rand(1).item() - 0.5) * 0.2 * cell_width
                     length = 0.3 * cell_width
                     angle = torch.rand(1).item() * math.tau
                     dx = math.cos(angle) * length
@@ -432,17 +466,17 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
                     y0 = min(max(cy - dy, 0.0), 1.0)
                     x1 = min(max(cx + dx, 0.0), 1.0)
                     y1 = min(max(cy + dy, 0.0), 1.0)
-                    width = 0.6 / n
+                    width = 0.6 / grid_dim
                     block = _create_line_constant_block(x0, y0, x1, y1, width, color, opacity)
-                else:
+                elif self.primitive_type == "bezier":
                     # Stratify control points within the grid cell to encourage coverage.
-                    span = 1.0 / n
-                    x0 = (i + torch.rand(1).item() * 0.3) / n
-                    y0 = (j + torch.rand(1).item()) / n
-                    x1 = (i + 0.35 + torch.rand(1).item() * 0.3) / n
-                    y1 = (j + torch.rand(1).item()) / n
-                    x2 = (i + 0.7 + torch.rand(1).item() * 0.3) / n
-                    y2 = (j + torch.rand(1).item()) / n
+                    span = 1.0 / grid_dim
+                    x0 = (i + torch.rand(1).item() * 0.3) / grid_dim
+                    y0 = (j + torch.rand(1).item()) / grid_dim
+                    x1 = (i + 0.35 + torch.rand(1).item() * 0.3) / grid_dim
+                    y1 = (j + torch.rand(1).item()) / grid_dim
+                    x2 = (i + 0.7 + torch.rand(1).item() * 0.3) / grid_dim
+                    y2 = (j + torch.rand(1).item()) / grid_dim
                     x0 = min(max(x0, 0.0), 1.0)
                     y0 = min(max(y0, 0.0), 1.0)
                     x1 = min(max(x1, 0.0), 1.0)
@@ -451,7 +485,18 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
                     y2 = min(max(y2, 0.0), 1.0)
                     width = (0.2 + torch.rand(1).item() * 0.3) * span
                     block = _create_bezier_constant_block(x0, y0, x1, y1, x2, y2, width, color, opacity)
+                else:  # circle
+                    cx = (i + 0.5) / grid_dim + (torch.rand(1).item() - 0.5) * 0.3 * cell_width
+                    cy = (j + 0.5) / grid_dim + (torch.rand(1).item() - 0.5) * 0.3 * cell_width
+                    cx = min(max(cx, 0.0), 1.0)
+                    cy = min(max(cy, 0.0), 1.0)
+                    radius = (0.1 + torch.rand(1).item() * 0.3) * cell_width
+                    opacity = 0.8 + torch.rand(1).item() * 0.2
+                    block = _create_circle_constant_block(cx, cy, radius, color, opacity)
                 params.extend(block)
+                count += 1
+            if count >= target_primitives:
+                break
 
         params_tensor = torch.tensor(params, dtype=torch.float32)
         self.primitive_types = nn.Parameter(params_tensor[0::20])
@@ -475,8 +520,12 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
         result = torch.zeros(self.total_primitives * 20, device=device)
         result[idx * 20] = self.primitive_types[active_indices]
 
+        control_points_full = self.control_points.view(-1, 6)
+        if self._is_circle:
+            control_points_full = control_points_full.clone()
+            control_points_full[:, 2] = self.stroke_widths
         control_idx = idx.unsqueeze(1) * 20 + torch.arange(1, 7, device=device)
-        active_control_points = self.control_points.view(-1, 6)[active_indices]
+        active_control_points = control_points_full[active_indices]
         result.index_put_((control_idx.view(-1),), active_control_points.view(-1))
 
         result[idx * 20 + 7] = self.stroke_widths[active_indices]
@@ -494,7 +543,7 @@ class VectorGraphicsRGBPaddedAccelIntegrandSlang(BaseIntegrandSlangRGB):
 
         grid = _build_acceleration_structure(
             self.primitive_types[active_indices],
-            self.control_points.view(-1, 6)[active_indices],
+            control_points_full[active_indices],
             self.stroke_widths[active_indices],
             self.grid_size,
             self.max_elements_per_cell,
